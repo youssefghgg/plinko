@@ -46,22 +46,6 @@ class PlinkoGame:
             ("Quit", self.root.quit, '#f44336')  # Red
         ]
 
-        for text, command, color in button_configs:
-            btn = tk.Button(button_frame,
-                            text=text,
-                            command=command,
-                            font=('Helvetica', 14, 'bold'),
-                            width=15,
-                            bd=0,
-                            relief='raised',
-                            pady=10,
-                            cursor='hand2')  # Hand cursor on hover
-            btn.pack(pady=10)
-
-            # Bind hover effects
-            btn.bind('<Enter>', lambda e, b=btn, c=color: self.on_enter(b, c))
-            btn.bind('<Leave>', lambda e, b=btn: self.on_leave(b))
-
     def create_styles(self):
         self.style = ttk.Style()
 
@@ -110,21 +94,67 @@ class PlinkoGame:
         title_frame = ttk.Frame(self.root)
         title_frame.place(relx=0.5, rely=0.15, anchor='center')
 
-        # Create main title with system background color
-        title_font = tkfont.Font(family='Helvetica', size=48, weight='bold')
-        title_label = tk.Label(title_frame,
-                               text="PLINKO!",
-                               font=title_font,
-                               bg=self.root.cget('bg'))  # Use system background color
-        title_label.pack()
+        # Create canvas for arched text
+        canvas_width = 400
+        canvas_height = 150
+        title_canvas = tk.Canvas(title_frame,
+                                 width=canvas_width,
+                                 height=canvas_height,
+                                 highlightthickness=0,
+                                 bd=0)
+        title_canvas.pack()
 
-        # Create subtitle
+    def update_title_bg(event=None):
+        # Get the current background color from gradient
+        if self.is_dark_mode:
+            bg_color = '#2d2d2d'
+        else:
+            bg_color = '#f0f0f0'
+        title_canvas.configure(bg=bg_color)
+
+        # Clear previous text
+        title_canvas.delete('all')
+
+        # Create arched text
+        text = "PLINKO!"
+        font_size = 48
+        title_font = tkfont.Font(family='Helvetica', size=font_size, weight='bold')
+
+        # Calculate positions for each letter
+        center_x = canvas_width // 2
+        base_y = canvas_height // 2
+        spacing = 30  # Adjust spacing between letters
+        arch_height = 30  # Adjust the height of the arch
+
+        # Calculate total width of text for centering
+        total_width = (len(text) - 1) * spacing
+        start_x = center_x - (total_width // 2)
+
+        # Draw each letter with vertical offset based on position
+        for i, letter in enumerate(text):
+            x = start_x + (i * spacing)
+            # Calculate y offset using a parabolic function
+            rel_pos = (x - center_x) / (total_width / 2)  # Position relative to center (-1 to 1)
+            y_offset = arch_height * (rel_pos ** 2)  # Parabolic arch
+            y = base_y - arch_height + y_offset
+
+            title_canvas.create_text(x, y,
+                                     text=letter,
+                                     font=title_font,
+                                     fill=fg_color if self.is_dark_mode else 'black')
+
+        # Add subtitle
         subtitle_font = tkfont.Font(family='Helvetica', size=14, weight='normal', slant='italic')
-        subtitle_label = tk.Label(title_frame,
-                                  text="Test your luck!",
-                                  font=subtitle_font,
-                                  bg=self.root.cget('bg'))  # Use system background color
-        subtitle_label.pack(pady=10)
+        title_canvas.create_text(center_x, base_y + 40,
+                                 text="Test your luck!",
+                                 font=subtitle_font,
+                                 fill=fg_color if self.is_dark_mode else 'black')
+        # Bind the update function to the canvas
+        title_canvas.bind('<Configure>', update_title_bg)
+        self.root.bind('<Configure>', update_title_bg)
+
+        # Store the update function for theme changes
+        self._update_title = update_title_bg
 
     def on_enter(self, button, color):
         button.config(bg=color, fg='white')
@@ -191,26 +221,77 @@ class PlinkoGame:
         # Update root background
         self.root.configure(bg=bg_color)
 
-        # Update all labels
-        for widget in self.root.winfo_children():
-            if isinstance(widget, tk.Label):
-                widget.configure(fg=fg_color, bg=bg_color)
-
-        # Update buttons
-        for widget in self.main_frame.winfo_children():
-            if isinstance(widget, tk.Button):
-                widget.configure(
-                    bg='#404040' if self.is_dark_mode else '#f0f0f0',
-                    fg=fg_color,
-                    activebackground='#505050' if self.is_dark_mode else '#e0e0e0',
-                    activeforeground=fg_color
-                )
-
         # Update gradient
         self.update_gradient()
 
+        # Update title
+        if hasattr(self, '_update_title'):
+            self._update_title()
+
+        # Force redraw of all rounded buttons
+        for widget in self.main_frame.winfo_children():
+            if isinstance(widget, ttk.Frame):  # Button frame
+                for button in widget.winfo_children():
+                    if isinstance(button, tk.Canvas):  # RoundedButton
+                        button._draw_button()
+
     def run(self):
         self.root.mainloop()
+
+    # Custom rounded button style
+    class RoundedButton(tk.Canvas):
+        def __init__(self, parent, text, command, color, **kwargs):
+            super().__init__(parent, **kwargs)
+            self.color = color
+            self.command = command
+            self.text = text
+
+            # Bind events
+            self.bind('<Button-1>', self._on_click)
+            self.bind('<Enter>', self._on_enter)
+            self.bind('<Leave>', self._on_leave)
+
+            self._draw_button()
+
+        def _draw_button(self, state='normal'):
+            self.delete('all')
+            width = self.winfo_width()
+            height = self.winfo_height()
+
+            # Colors based on state
+            if state == 'normal':
+                bg_color = '#f0f0f0' if not game.is_dark_mode else '#404040'
+                text_color = 'black' if not game.is_dark_mode else 'white'
+            elif state == 'hover':
+                bg_color = self.color
+                text_color = 'white'
+
+            # Create rounded rectangle
+            radius = height // 2
+            self.create_oval(0, 0, height, height, fill=bg_color, outline='')
+            self.create_oval(width - height, 0, width, height, fill=bg_color, outline='')
+            self.create_rectangle(height // 2, 0, width - height // 2, height, fill=bg_color, outline='')
+
+            # Add text
+            font = ('Helvetica', 14, 'bold')
+            self.create_text(width // 2, height // 2, text=self.text,
+                             font=font, fill=text_color)
+
+        def _on_click(self, event):
+            if self.command:
+                self.command()
+
+        def _on_enter(self, event):
+            self._draw_button('hover')
+
+        def _on_leave(self, event):
+            self._draw_button('normal')
+
+    # Create buttons
+    for text, command, color in button_configs:
+        btn = RoundedButton(button_frame, text=text, command=command, color=color,
+                            width=200, height=40, highlightthickness=0, bd=0)
+        btn.pack(pady=10)
 
 
 # Create and run the game

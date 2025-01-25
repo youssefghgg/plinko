@@ -74,12 +74,14 @@ class PlinkoGame:
         # Dashboard properties
         self.dashboard_width = 200
         self.dashboard_extended = False
-        self.dashboard_x = -self.dashboard_width  # Start retracted
+        self.dashboard_x = -self.dashboard_width
         self.amount = 0.0
         self.risks = ["Easy (2%)", "Medium (15%)", "Hard (40%)"]
-        self.selected_risk = 0  # Index of selected risk
+        self.selected_risk = 0
         self.is_dropdown_open = False
-        self.ball_radius = 10  # Double the size of pins (5*2)
+        self.ball_radius = 10
+        self.dashboard_buttons = {}
+        self.hovered_dashboard = None  # For hover effects
         # Clock
         self.clock = pygame.time.Clock()
 
@@ -103,20 +105,26 @@ class PlinkoGame:
         # Draw toggle button
         toggle_button = pygame.Rect(self.dashboard_x + self.dashboard_width,
                                     self.settings['height'] // 2 - 50, 20, 100)
-        pygame.draw.rect(self.screen, self.BLUE, toggle_button, border_radius=5)
+        pygame.draw.rect(self.screen,
+                         (0, 50, 150) if self.hovered_dashboard == 'toggle' else self.BLUE,
+                         toggle_button, border_radius=5)
+        self.dashboard_buttons['toggle'] = toggle_button
 
-        # Only draw controls if dashboard is visible
-        if self.dashboard_x >= 0:
+        # Only draw controls if dashboard is somewhat visible
+        if self.dashboard_x > -self.dashboard_width + 20:
             # Draw Amount label
             amount_label = self.button_font.render("Amount:", True, self.WHITE)
             self.screen.blit(amount_label, (self.dashboard_x + 10, 100))
 
             # Draw Amount textbox
             amount_box = pygame.Rect(self.dashboard_x + 10, 130, 180, 40)
-            pygame.draw.rect(self.screen, self.WHITE, amount_box, border_radius=5)
+            pygame.draw.rect(self.screen,
+                             (220, 220, 220) if self.hovered_dashboard == 'amount' else self.WHITE,
+                             amount_box, border_radius=5)
             amount_text = self.button_font.render(f"{self.amount:.1f} coin", True, self.BLACK)
             amount_rect = amount_text.get_rect(midleft=(amount_box.left + 10, amount_box.centery))
             self.screen.blit(amount_text, amount_rect)
+            self.dashboard_buttons['amount'] = amount_box
 
             # Draw Risk label
             risk_label = self.button_font.render("Risk:", True, self.WHITE)
@@ -124,11 +132,13 @@ class PlinkoGame:
 
             # Draw Risk combobox
             risk_box = pygame.Rect(self.dashboard_x + 10, 220, 180, 40)
-            pygame.draw.rect(self.screen, self.WHITE, risk_box, border_radius=5)
-            # Draw selected risk
+            pygame.draw.rect(self.screen,
+                             (220, 220, 220) if self.hovered_dashboard == 'risk' else self.WHITE,
+                             risk_box, border_radius=5)
             risk_text = self.button_font.render(self.risks[self.selected_risk], True, self.BLACK)
             risk_rect = risk_text.get_rect(midleft=(risk_box.left + 10, risk_box.centery))
             self.screen.blit(risk_text, risk_rect)
+            self.dashboard_buttons['risk'] = risk_box
 
             # Draw dropdown arrow
             pygame.draw.polygon(self.screen, self.BLACK,
@@ -146,23 +156,25 @@ class PlinkoGame:
                 for i, risk in enumerate(self.risks):
                     item_rect = pygame.Rect(dropdown_rect.left, dropdown_rect.top + i * 40,
                                             dropdown_rect.width, 40)
-                    if i == self.selected_risk:
+                    if i == self.selected_risk or self.hovered_dashboard == f'risk_{i}':
                         pygame.draw.rect(self.screen, self.BLUE, item_rect)
                     risk_text = self.button_font.render(risk, True,
-                                                        self.WHITE if i == self.selected_risk else self.BLACK)
+                                                        self.WHITE if i == self.selected_risk or
+                                                                      self.hovered_dashboard == f'risk_{i}' else self.BLACK)
                     text_rect = risk_text.get_rect(midleft=(item_rect.left + 10, item_rect.centery))
                     self.screen.blit(risk_text, text_rect)
+                    self.dashboard_buttons[f'risk_{i}'] = item_rect
 
             # Draw Drop Ball button
             button_y = self.settings['height'] - 100
             drop_button = pygame.Rect(self.dashboard_x + 10, button_y, 180, 40)
             pygame.draw.rect(self.screen,
-                             self.DARK_BLUE if self.hovered_button == 'drop_ball' else self.BLUE,
+                             self.DARK_BLUE if self.hovered_dashboard == 'drop_ball' else self.BLUE,
                              drop_button, border_radius=5)
             button_text = self.button_font.render("Drop Ball", True, self.WHITE)
             text_rect = button_text.get_rect(center=drop_button.center)
             self.screen.blit(button_text, text_rect)
-            self.drop_button = drop_button
+            self.dashboard_buttons['drop_ball'] = drop_button
 
     def save_settings(self):
         with open('settings.json', 'w') as f:
@@ -382,7 +394,13 @@ class PlinkoGame:
                 self.hovered_button = 'game_back'
             elif hasattr(self, 'game_shop_button') and self.game_shop_button.collidepoint(pos):
                 self.hovered_button = 'game_shop'
-
+                # Check dashboard buttons if in playing state
+            elif self.current_state == self.PLAYING:
+                self.hovered_dashboard = None
+                for button_name, button_rect in self.dashboard_buttons.items():
+                    if button_rect.collidepoint(pos):
+                        self.hovered_dashboard = button_name
+                        break
     def draw_shop(self):
         # Draw background
         self.draw_gradient_background()
@@ -405,11 +423,36 @@ class PlinkoGame:
         self.draw_money_counter()
 
     def update_dashboard(self):
-        # Animate dashboard
         target_x = 0 if self.dashboard_extended else -self.dashboard_width
         self.dashboard_x += (target_x - self.dashboard_x) * 0.2
 
+    def drop_ball(self):
+        risk_values = [0.02, 0.15, 0.40]  # Easy, Medium, Hard
+        bet_amount = self.amount * risk_values[self.selected_risk]
+        if bet_amount <= self.coins:
+            print(f"Dropping ball with bet: {bet_amount}")
+            # Ball dropping logic will be implemented later
+
+    def handle_dashboard_click(self, pos):
+        for button_name, button_rect in self.dashboard_buttons.items():
+            if button_rect.collidepoint(pos):
+                if button_name == 'toggle':
+                    self.dashboard_extended = not self.dashboard_extended
+                elif button_name == 'risk':
+                    self.is_dropdown_open = not self.is_dropdown_open
+                elif button_name.startswith('risk_'):
+                    self.selected_risk = int(button_name.split('_')[1])
+                    self.is_dropdown_open = False
+                elif button_name == 'drop_ball':
+                    self.drop_ball()
+                return True
+        return False
+
     def handle_click(self, pos):
+        # Handle dashboard clicks first if in playing state
+        if self.current_state == self.PLAYING:
+            if self.handle_dashboard_click(pos):
+                return
         # Check dashboard toggle
         toggle_button = pygame.Rect(self.dashboard_x + self.dashboard_width,
                                     self.settings['height'] // 2 - 50, 20, 100)
@@ -536,7 +579,7 @@ class PlinkoGame:
                 pygame.draw.circle(self.screen, self.WHITE, (x, y), pin_radius)
                 # Draw a slightly smaller inner circle for 3D effect
                 pygame.draw.circle(self.screen, self.GRAY, (x, y), pin_radius - 2)
-
+        self.draw_dashboard()
         # Draw multipliers
         multiplier_y = start_y + (15 * vertical_spacing) + 15  # Position between last row pins
         last_row_x = (self.settings['width'] - ((16) * horizontal_spacing)) // 2 - 16  # Center multiplier boxes
@@ -579,13 +622,6 @@ class PlinkoGame:
             text = multiplier_font.render(f"{multiplier}x", True, self.WHITE)
             text_rect = text.get_rect(center=multiplier_rect.center)
             self.screen.blit(text, text_rect)
-
-    def drop_ball(self):
-        risk_values = [0.02, 0.15, 0.40]  # Corresponding to Easy, Medium, Hard
-        bet_amount = self.amount * risk_values[self.selected_risk]
-        if bet_amount <= self.coins:
-            print(f"Dropping ball with bet: {bet_amount}")
-            # Add ball dropping logic here
 
     def run(self):
         running = True

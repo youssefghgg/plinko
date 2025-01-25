@@ -1,219 +1,201 @@
-import tkinter as tk
-from tkinter import ttk
-from tkinter import font as tkfont
+import pygame
+import sys
+import math
 
 
 class PlinkoGame:
     def __init__(self):
-        # Create the main window
-        self.root = tk.Tk()
-        self.root.title("Plinko Game")
-        self.root.geometry("800x600")  # Default size
+        pygame.init()
+        # Set up display
+        self.width = 800
+        self.height = 600
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption("Plinko Game")
 
-        # Variables for theme
-        self.is_dark_mode = False
+        # Colors
+        self.WHITE = (255, 255, 255)
+        self.BLACK = (0, 0, 0)
+        self.BLUE = (0, 100, 255)
+        self.GREEN = (0, 255, 0)
+        self.RED = (255, 0, 0)
 
-        # Create and configure styles
-        self.create_styles()
+        # Game states
+        self.MENU = "menu"
+        self.PLAYING = "playing"
+        self.SETTINGS = "settings"
+        self.current_state = self.MENU
 
-        # Create background frame with gradient effect
-        self.background_frame = tk.Frame(self.root)
-        self.background_frame.pack(fill='both', expand=True)
-        self.create_gradient()
+        # Font
+        self.title_font = pygame.font.Font(None, 74)
+        self.button_font = pygame.font.Font(None, 36)
 
-        # Create title frame
-        self.create_title()
+        # Buttons
+        self.buttons = {
+            'start': pygame.Rect(300, 250, 200, 50),
+            'settings': pygame.Rect(300, 320, 200, 50),
+            'quit': pygame.Rect(300, 390, 200, 50)
+        }
 
-        # Create main frame for buttons
-        self.main_frame = ttk.Frame(self.root)
-        self.main_frame.place(relx=0.5, rely=0.5, anchor='center')
+        # Game objects
+        self.pegs = []
+        self.ball = None
+        self.setup_pegs()
 
-        # Create buttons
-        self.create_buttons()
+        # Clock
+        self.clock = pygame.time.Clock()
 
-        # Apply initial theme
-        self.apply_theme()
+    def setup_pegs(self):
+        # Create a triangle pattern of pegs
+        rows = 8
+        spacing = 50
+        for row in range(rows):
+            for col in range(row + 1):
+                x = self.width // 2 - (row * spacing // 2) + (col * spacing)
+                y = 150 + (row * spacing)
+                self.pegs.append((x, y))
 
-    def create_buttons(self):
-        # Create a frame for button container with spacing
-        button_frame = ttk.Frame(self.main_frame)
-        button_frame.pack(pady=20)
+    def draw_gradient_background(self):
+        for y in range(self.height):
+            r = int(100 + (y / self.height) * 155)
+            g = int(150 + (y / self.height) * 105)
+            b = int(255 - (y / self.height) * 105)
+            pygame.draw.line(self.screen, (r, g, b), (0, y), (self.width, y))
 
-        # Button configurations
-        button_configs = [
-            ("Start Game", self.start_game, '#4CAF50'),  # Green
-            ("Settings", self.open_settings, '#2196F3'),  # Blue
-            ("Quit", self.root.quit, '#f44336')  # Red
-        ]
+    def draw_menu(self):
+        # Draw background
+        self.draw_gradient_background()
 
-        for text, command, color in button_configs:
-            btn = tk.Button(button_frame,
-                            text=text,
-                            command=command,
-                            font=('Helvetica', 14, 'bold'),
-                            width=15,
-                            bd=0,
-                            relief='raised',
-                            pady=10,
-                            cursor='hand2')  # Hand cursor on hover
-            btn.pack(pady=10)
+        # Draw title
+        title = self.title_font.render("PLINKO!", True, self.BLACK)
+        title_rect = title.get_rect(center=(self.width // 2, 100))
+        self.screen.blit(title, title_rect)
 
-            # Bind hover effects
-            btn.bind('<Enter>', lambda e, b=btn, c=color: self.on_enter(b, c))
-            btn.bind('<Leave>', lambda e, b=btn: self.on_leave(b))
+        # Draw buttons
+        button_texts = {'start': 'Start Game', 'settings': 'Settings', 'quit': 'Quit'}
+        for button_name, button_rect in self.buttons.items():
+            # Draw button
+            pygame.draw.rect(self.screen, self.BLUE, button_rect, border_radius=10)
 
-    def create_styles(self):
-        self.style = ttk.Style()
+            # Draw button text
+            text = self.button_font.render(button_texts[button_name], True, self.WHITE)
+            text_rect = text.get_rect(center=button_rect.center)
+            self.screen.blit(text, text_rect)
 
-        # Configure button style
-        self.style.configure('Custom.TButton',
-                             padding=(20, 10),
-                             font=('Helvetica', 14, 'bold'),
-                             borderwidth=3,
-                             relief='raised')
+    def draw_game(self):
+        # Draw background
+        self.draw_gradient_background()
 
-    def create_gradient(self):
-        # Create canvas for gradient background
-        self.canvas = tk.Canvas(self.background_frame, highlightthickness=0)
-        self.canvas.pack(fill='both', expand=True)
+        # Draw pegs
+        for peg in self.pegs:
+            pygame.draw.circle(self.screen, self.BLACK, peg, 5)
 
-        # Create gradient
-        self.update_gradient()
+        # Draw ball if it exists
+        if self.ball:
+            pygame.draw.circle(self.screen, self.RED,
+                               (int(self.ball['x']), int(self.ball['y'])), 10)
 
-        # Bind resize event
-        self.root.bind('<Configure>', lambda e: self.update_gradient())
+    def draw_settings(self):
+        # Draw background
+        self.draw_gradient_background()
 
-    def update_gradient(self):
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
+        # Draw title
+        title = self.title_font.render("Settings", True, self.BLACK)
+        title_rect = title.get_rect(center=(self.width // 2, 100))
+        self.screen.blit(title, title_rect)
 
-        # Clear previous gradient
-        self.canvas.delete("gradient")
+        # Add back button
+        back_button = pygame.Rect(300, 500, 200, 50)
+        pygame.draw.rect(self.screen, self.BLUE, back_button, border_radius=10)
+        back_text = self.button_font.render("Back", True, self.WHITE)
+        back_rect = back_text.get_rect(center=back_button.center)
+        self.screen.blit(back_text, back_rect)
 
-        # Create new gradient
-        for i in range(height):
-            # Calculate color for current line
-            if self.is_dark_mode:
-                r = int(25 + (i / height) * 20)
-                g = int(25 + (i / height) * 20)
-                b = int(45 + (i / height) * 20)
-            else:
-                r = int(100 + (i / height) * 155)
-                g = int(150 + (i / height) * 105)
-                b = int(255 - (i / height) * 105)
+    def handle_click(self, pos):
+        if self.current_state == self.MENU:
+            for button_name, button_rect in self.buttons.items():
+                if button_rect.collidepoint(pos):
+                    if button_name == 'start':
+                        self.current_state = self.PLAYING
+                    elif button_name == 'settings':
+                        self.current_state = self.SETTINGS
+                    elif button_name == 'quit':
+                        pygame.quit()
+                        sys.exit()
 
-            color = f'#{r:02x}{g:02x}{b:02x}'
-            self.canvas.create_line(0, i, width, i, fill=color, tags="gradient")
+        elif self.current_state == self.PLAYING:
+            # Drop a new ball
+            if pos[1] < 150:  # Only if clicking above the pegs
+                self.ball = {
+                    'x': pos[0],
+                    'y': pos[1],
+                    'dy': 0,  # Vertical velocity
+                    'dx': 0  # Horizontal velocity
+                }
 
-    def create_title(self):
-        # Create title frame
-        title_frame = ttk.Frame(self.root)
-        title_frame.place(relx=0.5, rely=0.15, anchor='center')
+        elif self.current_state == self.SETTINGS:
+            back_button = pygame.Rect(300, 500, 200, 50)
+            if back_button.collidepoint(pos):
+                self.current_state = self.MENU
 
-        # Create main title with system background color
-        title_font = tkfont.Font(family='Helvetica', size=48, weight='bold')
-        title_label = tk.Label(title_frame,
-                               text="PLINKO!",
-                               font=title_font,
-                               bg=self.root.cget('bg'))  # Use system background color
-        title_label.pack()
+    def update_ball(self):
+        if self.ball:
+            # Apply gravity
+            self.ball['dy'] += 0.5
 
-        # Create subtitle
-        subtitle_font = tkfont.Font(family='Helvetica', size=14, weight='normal', slant='italic')
-        subtitle_label = tk.Label(title_frame,
-                                  text="Test your luck!",
-                                  font=subtitle_font,
-                                  bg=self.root.cget('bg'))  # Use system background color
-        subtitle_label.pack(pady=10)
+            # Update position
+            self.ball['x'] += self.ball['dx']
+            self.ball['y'] += self.ball['dy']
 
-    def on_enter(self, button, color):
-        button.config(bg=color, fg='white')
+            # Check for collisions with pegs
+            for peg in self.pegs:
+                dx = self.ball['x'] - peg[0]
+                dy = self.ball['y'] - peg[1]
+                distance = math.sqrt(dx * dx + dy * dy)
 
-    def on_leave(self, button):
-        if self.is_dark_mode:
-            button.config(bg='#404040', fg='white')
-        else:
-            button.config(bg='#f0f0f0', fg='black')
+                if distance < 15:  # Ball + peg radius
+                    # Bounce off peg
+                    angle = math.atan2(dy, dx)
+                    self.ball['dx'] = math.cos(angle) * 5
+                    self.ball['dy'] = math.sin(angle) * 5
 
-    def start_game(self):
-        # Placeholder for future implementation
-        pass
-
-    def open_settings(self):
-        # Create settings window
-        settings_window = tk.Toplevel(self.root)
-        settings_window.title("Settings")
-        settings_window.geometry("400x300")
-        settings_window.transient(self.root)  # Make window modal
-
-        # Create frame for settings
-        settings_frame = ttk.Frame(settings_window, padding="20")
-        settings_frame.pack(expand=True)
-
-        # Window size settings
-        size_label = ttk.Label(settings_frame, text="Window Size:")
-        size_label.pack(pady=5)
-
-        # Size options
-        sizes = ["800x600", "1024x768", "1280x720"]
-        size_var = tk.StringVar(value=self.root.geometry().split("+")[0])
-
-        for size in sizes:
-            ttk.Radiobutton(
-                settings_frame,
-                text=size,
-                value=size,
-                variable=size_var,
-                command=lambda s=size: self.change_size(s)
-            ).pack()
-
-        # Dark mode toggle
-        dark_mode_var = tk.BooleanVar(value=self.is_dark_mode)
-        dark_mode_check = ttk.Checkbutton(
-            settings_frame,
-            text="Dark Mode",
-            variable=dark_mode_var,
-            command=lambda: self.toggle_dark_mode(dark_mode_var.get())
-        )
-        dark_mode_check.pack(pady=20)
-
-    def change_size(self, size):
-        self.root.geometry(size)
-
-    def toggle_dark_mode(self, is_dark):
-        self.is_dark_mode = is_dark
-        self.apply_theme()
-
-    def apply_theme(self):
-        bg_color = '#2d2d2d' if self.is_dark_mode else '#f0f0f0'
-        fg_color = 'white' if self.is_dark_mode else 'black'
-
-        # Update root background
-        self.root.configure(bg=bg_color)
-
-        # Update all labels
-        for widget in self.root.winfo_children():
-            if isinstance(widget, tk.Label):
-                widget.configure(fg=fg_color, bg=bg_color)
-
-        # Update buttons
-        for widget in self.main_frame.winfo_children():
-            if isinstance(widget, tk.Button):
-                widget.configure(
-                    bg='#404040' if self.is_dark_mode else '#f0f0f0',
-                    fg=fg_color,
-                    activebackground='#505050' if self.is_dark_mode else '#e0e0e0',
-                    activeforeground=fg_color
-                )
-
-        # Update gradient
-        self.update_gradient()
+            # Remove ball if it goes off screen
+            if self.ball['y'] > self.height:
+                self.ball = None
 
     def run(self):
-        self.root.mainloop()
+        running = True
+        while running:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    self.handle_click(event.pos)
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.current_state = self.MENU
+
+            # Clear screen
+            self.screen.fill(self.WHITE)
+
+            # Update and draw based on current state
+            if self.current_state == self.MENU:
+                self.draw_menu()
+            elif self.current_state == self.PLAYING:
+                self.update_ball()
+                self.draw_game()
+            elif self.current_state == self.SETTINGS:
+                self.draw_settings()
+
+            # Update display
+            pygame.display.flip()
+
+            # Control frame rate
+            self.clock.tick(60)
+
+        pygame.quit()
 
 
-# Create and run the game
 if __name__ == "__main__":
     game = PlinkoGame()
     game.run()

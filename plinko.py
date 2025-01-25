@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import font as tkfont
 
 
 class PlinkoGame:
@@ -12,15 +13,20 @@ class PlinkoGame:
         # Variables for theme
         self.is_dark_mode = False
 
-        # Configure style for buttons
-        self.style = ttk.Style()
-        self.style.configure('Custom.TButton',
-                             padding=10,
-                             font=('Helvetica', 12))
+        # Create and configure styles
+        self.create_styles()
 
-        # Create main frame
-        self.main_frame = ttk.Frame(self.root, padding="20")
-        self.main_frame.pack(expand=True)
+        # Create background frame with gradient effect
+        self.background_frame = tk.Frame(self.root)
+        self.background_frame.pack(fill='both', expand=True)
+        self.create_gradient()
+
+        # Create title frame
+        self.create_title()
+
+        # Create main frame for buttons
+        self.main_frame = ttk.Frame(self.root)
+        self.main_frame.place(relx=0.5, rely=0.5, anchor='center')
 
         # Create buttons
         self.create_buttons()
@@ -29,32 +35,105 @@ class PlinkoGame:
         self.apply_theme()
 
     def create_buttons(self):
-        # Start Game button
-        self.start_button = ttk.Button(
-            self.main_frame,
-            text="Start Game",
-            style='Custom.TButton',
-            command=self.start_game
-        )
-        self.start_button.pack(pady=10)
+        # Create a frame for button container with spacing
+        button_frame = ttk.Frame(self.main_frame)
+        button_frame.pack(pady=20)
 
-        # Settings button
-        self.settings_button = ttk.Button(
-            self.main_frame,
-            text="Settings",
-            style='Custom.TButton',
-            command=self.open_settings
-        )
-        self.settings_button.pack(pady=10)
+        # Button configurations
+        button_configs = [
+            ("Start Game", self.start_game, '#4CAF50'),  # Green
+            ("Settings", self.open_settings, '#2196F3'),  # Blue
+            ("Quit", self.root.quit, '#f44336')  # Red
+        ]
 
-        # Quit button
-        self.quit_button = ttk.Button(
-            self.main_frame,
-            text="Quit",
-            style='Custom.TButton',
-            command=self.root.quit
-        )
-        self.quit_button.pack(pady=10)
+        for text, command, color in button_configs:
+            btn = tk.Button(button_frame,
+                            text=text,
+                            command=command,
+                            font=('Helvetica', 14, 'bold'),
+                            width=15,
+                            bd=0,
+                            relief='raised',
+                            pady=10,
+                            cursor='hand2')  # Hand cursor on hover
+            btn.pack(pady=10)
+
+            # Bind hover effects
+            btn.bind('<Enter>', lambda e, b=btn, c=color: self.on_enter(b, c))
+            btn.bind('<Leave>', lambda e, b=btn: self.on_leave(b))
+
+    def create_styles(self):
+        self.style = ttk.Style()
+
+        # Configure button style
+        self.style.configure('Custom.TButton',
+                             padding=(20, 10),
+                             font=('Helvetica', 14, 'bold'),
+                             borderwidth=3,
+                             relief='raised')
+
+    def create_gradient(self):
+        # Create canvas for gradient background
+        self.canvas = tk.Canvas(self.background_frame, highlightthickness=0)
+        self.canvas.pack(fill='both', expand=True)
+
+        # Create gradient
+        self.update_gradient()
+
+        # Bind resize event
+        self.root.bind('<Configure>', lambda e: self.update_gradient())
+
+    def update_gradient(self):
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+
+        # Clear previous gradient
+        self.canvas.delete("gradient")
+
+        # Create new gradient
+        for i in range(height):
+            # Calculate color for current line
+            if self.is_dark_mode:
+                r = int(25 + (i / height) * 20)
+                g = int(25 + (i / height) * 20)
+                b = int(45 + (i / height) * 20)
+            else:
+                r = int(100 + (i / height) * 155)
+                g = int(150 + (i / height) * 105)
+                b = int(255 - (i / height) * 105)
+
+            color = f'#{r:02x}{g:02x}{b:02x}'
+            self.canvas.create_line(0, i, width, i, fill=color, tags="gradient")
+
+    def create_title(self):
+        # Create title frame
+        title_frame = ttk.Frame(self.root)
+        title_frame.place(relx=0.5, rely=0.15, anchor='center')
+
+        # Create main title with system background color
+        title_font = tkfont.Font(family='Helvetica', size=48, weight='bold')
+        title_label = tk.Label(title_frame,
+                               text="PLINKO!",
+                               font=title_font,
+                               bg=self.root.cget('bg'))  # Use system background color
+        title_label.pack()
+
+        # Create subtitle
+        subtitle_font = tkfont.Font(family='Helvetica', size=14, weight='normal', slant='italic')
+        subtitle_label = tk.Label(title_frame,
+                                  text="Test your luck!",
+                                  font=subtitle_font,
+                                  bg=self.root.cget('bg'))  # Use system background color
+        subtitle_label.pack(pady=10)
+
+    def on_enter(self, button, color):
+        button.config(bg=color, fg='white')
+
+    def on_leave(self, button):
+        if self.is_dark_mode:
+            button.config(bg='#404040', fg='white')
+        else:
+            button.config(bg='#f0f0f0', fg='black')
 
     def start_game(self):
         # Placeholder for future implementation
@@ -106,22 +185,29 @@ class PlinkoGame:
         self.apply_theme()
 
     def apply_theme(self):
-        if self.is_dark_mode:
-            # Dark theme colors
-            self.root.configure(bg='#2d2d2d')
-            self.main_frame.configure(style='Dark.TFrame')
-            self.style.configure('Dark.TFrame', background='#2d2d2d')
-            self.style.configure('Custom.TButton',
-                                 background='#404040',
-                                 foreground='white')
-        else:
-            # Light theme colors
-            self.root.configure(bg='#f0f0f0')
-            self.main_frame.configure(style='Light.TFrame')
-            self.style.configure('Light.TFrame', background='#f0f0f0')
-            self.style.configure('Custom.TButton',
-                                 background='#e0e0e0',
-                                 foreground='black')
+        bg_color = '#2d2d2d' if self.is_dark_mode else '#f0f0f0'
+        fg_color = 'white' if self.is_dark_mode else 'black'
+
+        # Update root background
+        self.root.configure(bg=bg_color)
+
+        # Update all labels
+        for widget in self.root.winfo_children():
+            if isinstance(widget, tk.Label):
+                widget.configure(fg=fg_color, bg=bg_color)
+
+        # Update buttons
+        for widget in self.main_frame.winfo_children():
+            if isinstance(widget, tk.Button):
+                widget.configure(
+                    bg='#404040' if self.is_dark_mode else '#f0f0f0',
+                    fg=fg_color,
+                    activebackground='#505050' if self.is_dark_mode else '#e0e0e0',
+                    activeforeground=fg_color
+                )
+
+        # Update gradient
+        self.update_gradient()
 
     def run(self):
         self.root.mainloop()

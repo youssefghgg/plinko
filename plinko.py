@@ -120,23 +120,41 @@ class PlinkoGame:
             self.title_points.append((x, y, text[i]))
 
     def draw_money_counter(self):
+        # Create a background rectangle for the entire counter group
+        counter_width = 140  # Width of the entire counter group
+        counter_height = 40  # Height of the counter group
+        counter_x = self.settings['width'] - counter_width - 10  # 10 pixels from right edge
+        counter_y = 15  # 15 pixels from top
+
+        # Draw the background rectangle with rounded corners
+        counter_bg = pygame.Rect(counter_x, counter_y, counter_width, counter_height)
+        pygame.draw.rect(self.screen, self.BLUE, counter_bg, border_radius=10)
+
         # Draw coin symbol
-        coin_x = self.settings['width'] - 150
-        coin_y = 20
-        pygame.draw.circle(self.screen, self.GOLD, (coin_x, coin_y + 10), 15)
-        pygame.draw.circle(self.screen, (200, 170, 0), (coin_x, coin_y + 10), 12)
+        coin_x = counter_x + 20  # Move coin to be inside the rectangle
+        coin_y = counter_y + (counter_height // 2)  # Center vertically
+        pygame.draw.circle(self.screen, self.GOLD, (coin_x, coin_y), 15)
+        pygame.draw.circle(self.screen, (200, 170, 0), (coin_x, coin_y), 12)
 
         # Draw count
-        count_text = self.coin_font.render(str(self.coins), True,
-                                           self.WHITE if self.settings['dark_mode'] else self.BLACK)
-        count_rect = count_text.get_rect(midleft=(coin_x + 20, coin_y + 10))
+        count_text = self.coin_font.render(str(self.coins), True, self.WHITE)
+        count_rect = count_text.get_rect(midleft=(coin_x + 25, coin_y))
         self.screen.blit(count_text, count_rect)
 
-        # Draw shop button (+)
-        shop_button = pygame.Rect(self.settings['width'] - 40, coin_y, 30, 30)
-        pygame.draw.rect(self.screen, self.BLUE if self.hovered_button != 'shop' else self.DARK_BLUE,
+        # Draw shop button (+) - Moved upward
+        shop_button = pygame.Rect(counter_x + counter_width - 35, counter_y , 33,
+                                  40)  # Moved up by changing y position
+        pygame.draw.rect(self.screen,
+                         self.DARK_BLUE if self.hovered_button == 'shop' else self.BLUE,
                          shop_button, border_radius=5)
-        plus_text = self.button_font.render("+", True, self.WHITE)
+        plus_font = pygame.font.Font(None, 48)
+        plus_text = plus_font.render("+", True, self.WHITE)
+        plus_rect = plus_text.get_rect(center=shop_button.center)
+        self.screen.blit(plus_text, plus_rect)
+
+        # Using a larger font size for the plus symbol
+        plus_font = pygame.font.Font(None, 48)  # Increased font size from 36 to 48
+        plus_text = plus_font.render("+", True, self.WHITE)
         plus_rect = plus_text.get_rect(center=shop_button.center)
         self.screen.blit(plus_text, plus_rect)
 
@@ -187,35 +205,41 @@ class PlinkoGame:
         size_rect = size_text.get_rect(center=(self.settings['width'] // 2, 170))
         self.screen.blit(size_text, size_rect)
 
-        # Draw arrows and current size
-        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['size_left'], border_radius=5)
-        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['size_right'], border_radius=5)
+        # Draw arrows and current size with hover effects
+        left_color = self.DARK_BLUE if self.hovered_button == 'size_left' else self.BLUE
+        right_color = self.DARK_BLUE if self.hovered_button == 'size_right' else self.BLUE
 
-        # Draw arrow symbols
+        # Draw arrow buttons with proper colors
+        pygame.draw.rect(self.screen, left_color, self.settings_buttons['size_left'], border_radius=5)
+        pygame.draw.rect(self.screen, right_color, self.settings_buttons['size_right'], border_radius=5)
+
+        # Draw arrow symbols (centered)
         left_arrow = self.button_font.render("<", True, self.WHITE)
         right_arrow = self.button_font.render(">", True, self.WHITE)
-        self.screen.blit(left_arrow, self.settings_buttons['size_left'].move(10, 0))
-        self.screen.blit(right_arrow, self.settings_buttons['size_right'].move(10, 0))
+
+        # Center the arrows in their buttons
+        left_rect = left_arrow.get_rect(center=self.settings_buttons['size_left'].center)
+        right_rect = right_arrow.get_rect(center=self.settings_buttons['size_right'].center)
+
+        self.screen.blit(left_arrow, left_rect)
+        self.screen.blit(right_arrow, right_rect)
 
         # Draw current size
         size_text = self.button_font.render(self.window_sizes[self.selected_size_index], True, text_color)
         size_rect = size_text.get_rect(center=(self.settings['width'] // 2, 215))
         self.screen.blit(size_text, size_rect)
-        for button_name, button_rect in self.settings_buttons.items():
-            color = self.DARK_BLUE if self.hovered_button == button_name else self.BLUE
-            pygame.draw.rect(self.screen, color, button_rect,
-                             border_radius=5 if 'size' in button_name else 10)
-        # Draw dark mode toggle
-        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['dark_mode'], border_radius=10)
-        dark_text = self.button_font.render(f"Dark Mode: {'On' if self.settings['dark_mode'] else 'Off'}",
-                                            True, self.WHITE)
+
+        # Draw dark mode toggle with hover effect
+        dark_mode_color = self.DARK_BLUE if self.hovered_button == 'dark_mode' else self.BLUE
+        pygame.draw.rect(self.screen, dark_mode_color, self.settings_buttons['dark_mode'], border_radius=10)
+        dark_text = self.button_font.render(f"Dark Mode: {'On' if self.settings['dark_mode'] else 'Off'}", True,
+                                            self.WHITE)
         dark_rect = dark_text.get_rect(center=self.settings_buttons['dark_mode'].center)
         self.screen.blit(dark_text, dark_rect)
 
-        # Draw back button
-        pygame.draw.rect(self.screen,
-                         self.DARK_BLUE if self.hovered_button == 'back' else self.BLUE,
-                         self.settings_buttons['back'], border_radius=10)
+        # Draw back button with hover effect
+        back_color = self.DARK_BLUE if self.hovered_button == 'back' else self.BLUE
+        pygame.draw.rect(self.screen, back_color, self.settings_buttons['back'], border_radius=10)
         back_text = self.button_font.render("Back", True, self.WHITE)
         back_rect = back_text.get_rect(center=self.settings_buttons['back'].center)
         self.screen.blit(back_text, back_rect)

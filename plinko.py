@@ -3,6 +3,10 @@ from tkinter import ttk
 from tkinter import font as tkfont
 
 
+import tkinter as tk
+from tkinter import ttk
+from tkinter import font as tkfont
+
 class PlinkoGame:
     def __init__(self):
         # Create the main window
@@ -34,6 +38,55 @@ class PlinkoGame:
         # Apply initial theme
         self.apply_theme()
 
+    class RoundedButton(tk.Canvas):
+        def __init__(self, parent, text, command, color, game_instance, **kwargs):
+            super().__init__(parent, **kwargs)
+            self.color = color
+            self.command = command
+            self.text = text
+            self.game_instance = game_instance  # Store reference to game instance
+
+            # Bind events
+            self.bind('<Button-1>', self._on_click)
+            self.bind('<Enter>', self._on_enter)
+            self.bind('<Leave>', self._on_leave)
+
+            self._draw_button()
+
+        def _draw_button(self, state='normal'):
+            self.delete('all')
+            width = self.winfo_width()
+            height = self.winfo_height()
+
+            # Colors based on state
+            if state == 'normal':
+                bg_color = '#f0f0f0' if not self.game_instance.is_dark_mode else '#404040'
+                text_color = 'black' if not self.game_instance.is_dark_mode else 'white'
+            elif state == 'hover':
+                bg_color = self.color
+                text_color = 'white'
+
+            # Create rounded rectangle
+            radius = height // 2
+            self.create_oval(0, 0, height, height, fill=bg_color, outline='')
+            self.create_oval(width - height, 0, width, height, fill=bg_color, outline='')
+            self.create_rectangle(height // 2, 0, width - height // 2, height, fill=bg_color, outline='')
+
+            # Add text
+            font = ('Helvetica', 14, 'bold')
+            self.create_text(width // 2, height // 2, text=self.text,
+                           font=font, fill=text_color)
+
+        def _on_click(self, event):
+            if self.command:
+                self.command()
+
+        def _on_enter(self, event):
+            self._draw_button('hover')
+
+        def _on_leave(self, event):
+            self._draw_button('normal')
+
     def create_buttons(self):
         # Create a frame for button container with spacing
         button_frame = ttk.Frame(self.main_frame)
@@ -45,6 +98,13 @@ class PlinkoGame:
             ("Settings", self.open_settings, '#2196F3'),  # Blue
             ("Quit", self.root.quit, '#f44336')  # Red
         ]
+
+        # Create buttons
+        for text, command, color in button_configs:
+            btn = self.RoundedButton(button_frame, text=text, command=command, color=color,
+                                   game_instance=self,  # Pass the game instance
+                                   width=200, height=40, highlightthickness=0, bd=0)
+            btn.pack(pady=10)
 
     def create_styles(self):
         self.style = ttk.Style()
@@ -97,23 +157,25 @@ class PlinkoGame:
         # Create canvas for arched text
         canvas_width = 400
         canvas_height = 150
-        title_canvas = tk.Canvas(title_frame,
-                                 width=canvas_width,
-                                 height=canvas_height,
-                                 highlightthickness=0,
-                                 bd=0)
-        title_canvas.pack()
+        self.title_canvas = tk.Canvas(title_frame,
+                                    width=canvas_width,
+                                    height=canvas_height,
+                                    highlightthickness=0,
+                                    bd=0)
+        self.title_canvas.pack()
 
-    def update_title_bg(event=None):
+        # Initial update of title
+        self.update_title_bg()
+
+    def update_title_bg(self, event=None):
         # Get the current background color from gradient
-        if self.is_dark_mode:
-            bg_color = '#2d2d2d'
-        else:
-            bg_color = '#f0f0f0'
-        title_canvas.configure(bg=bg_color)
+        bg_color = '#2d2d2d' if self.is_dark_mode else '#f0f0f0'
+        fg_color = 'white' if self.is_dark_mode else 'black'
+
+        self.title_canvas.configure(bg=bg_color)
 
         # Clear previous text
-        title_canvas.delete('all')
+        self.title_canvas.delete('all')
 
         # Create arched text
         text = "PLINKO!"
@@ -121,8 +183,8 @@ class PlinkoGame:
         title_font = tkfont.Font(family='Helvetica', size=font_size, weight='bold')
 
         # Calculate positions for each letter
-        center_x = canvas_width // 2
-        base_y = canvas_height // 2
+        center_x = self.title_canvas.winfo_width() // 2
+        base_y = self.title_canvas.winfo_height() // 2
         spacing = 30  # Adjust spacing between letters
         arch_height = 30  # Adjust the height of the arch
 
@@ -138,23 +200,17 @@ class PlinkoGame:
             y_offset = arch_height * (rel_pos ** 2)  # Parabolic arch
             y = base_y - arch_height + y_offset
 
-            title_canvas.create_text(x, y,
-                                     text=letter,
-                                     font=title_font,
-                                     fill=fg_color if self.is_dark_mode else 'black')
+            self.title_canvas.create_text(x, y,
+                                          text=letter,
+                                          font=title_font,
+                                          fill=fg_color)
 
         # Add subtitle
         subtitle_font = tkfont.Font(family='Helvetica', size=14, weight='normal', slant='italic')
-        title_canvas.create_text(center_x, base_y + 40,
-                                 text="Test your luck!",
-                                 font=subtitle_font,
-                                 fill=fg_color if self.is_dark_mode else 'black')
-        # Bind the update function to the canvas
-        title_canvas.bind('<Configure>', update_title_bg)
-        self.root.bind('<Configure>', update_title_bg)
-
-        # Store the update function for theme changes
-        self._update_title = update_title_bg
+        self.title_canvas.create_text(center_x, base_y + 40,
+                                      text="Test your luck!",
+                                      font=subtitle_font,
+                                      fill=fg_color)
 
     def on_enter(self, button, color):
         button.config(bg=color, fg='white')
@@ -225,73 +281,17 @@ class PlinkoGame:
         self.update_gradient()
 
         # Update title
-        if hasattr(self, '_update_title'):
-            self._update_title()
+        self.update_title_bg()
 
         # Force redraw of all rounded buttons
         for widget in self.main_frame.winfo_children():
             if isinstance(widget, ttk.Frame):  # Button frame
                 for button in widget.winfo_children():
-                    if isinstance(button, tk.Canvas):  # RoundedButton
+                    if isinstance(button, self.RoundedButton):  # RoundedButton
                         button._draw_button()
 
     def run(self):
         self.root.mainloop()
-
-    # Custom rounded button style
-    class RoundedButton(tk.Canvas):
-        def __init__(self, parent, text, command, color, **kwargs):
-            super().__init__(parent, **kwargs)
-            self.color = color
-            self.command = command
-            self.text = text
-
-            # Bind events
-            self.bind('<Button-1>', self._on_click)
-            self.bind('<Enter>', self._on_enter)
-            self.bind('<Leave>', self._on_leave)
-
-            self._draw_button()
-
-        def _draw_button(self, state='normal'):
-            self.delete('all')
-            width = self.winfo_width()
-            height = self.winfo_height()
-
-            # Colors based on state
-            if state == 'normal':
-                bg_color = '#f0f0f0' if not game.is_dark_mode else '#404040'
-                text_color = 'black' if not game.is_dark_mode else 'white'
-            elif state == 'hover':
-                bg_color = self.color
-                text_color = 'white'
-
-            # Create rounded rectangle
-            radius = height // 2
-            self.create_oval(0, 0, height, height, fill=bg_color, outline='')
-            self.create_oval(width - height, 0, width, height, fill=bg_color, outline='')
-            self.create_rectangle(height // 2, 0, width - height // 2, height, fill=bg_color, outline='')
-
-            # Add text
-            font = ('Helvetica', 14, 'bold')
-            self.create_text(width // 2, height // 2, text=self.text,
-                             font=font, fill=text_color)
-
-        def _on_click(self, event):
-            if self.command:
-                self.command()
-
-        def _on_enter(self, event):
-            self._draw_button('hover')
-
-        def _on_leave(self, event):
-            self._draw_button('normal')
-
-    # Create buttons
-    for text, command, color in button_configs:
-        btn = RoundedButton(button_frame, text=text, command=command, color=color,
-                            width=200, height=40, highlightthickness=0, bd=0)
-        btn.pack(pady=10)
 
 
 # Create and run the game

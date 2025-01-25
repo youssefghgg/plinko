@@ -108,7 +108,7 @@ class PlinkoGame:
         # Generate points for title text to follow an arc
         self.title_points = []
         text = "PLINKO!"
-        center_x = self.settings['width'] // 2
+        center_x = (self.settings['width'] // 2) - 10  # Subtract 10 pixels to move left
         base_y = 100
         arc_height = 30  # Height of the arc
 
@@ -201,7 +201,10 @@ class PlinkoGame:
         size_text = self.button_font.render(self.window_sizes[self.selected_size_index], True, text_color)
         size_rect = size_text.get_rect(center=(self.settings['width'] // 2, 215))
         self.screen.blit(size_text, size_rect)
-
+        for button_name, button_rect in self.settings_buttons.items():
+            color = self.DARK_BLUE if self.hovered_button == button_name else self.BLUE
+            pygame.draw.rect(self.screen, color, button_rect,
+                             border_radius=5 if 'size' in button_name else 10)
         # Draw dark mode toggle
         pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['dark_mode'], border_radius=10)
         dark_text = self.button_font.render(f"Dark Mode: {'On' if self.settings['dark_mode'] else 'Off'}",
@@ -210,7 +213,9 @@ class PlinkoGame:
         self.screen.blit(dark_text, dark_rect)
 
         # Draw back button
-        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['back'], border_radius=10)
+        pygame.draw.rect(self.screen,
+                         self.DARK_BLUE if self.hovered_button == 'back' else self.BLUE,
+                         self.settings_buttons['back'], border_radius=10)
         back_text = self.button_font.render("Back", True, self.WHITE)
         back_rect = back_text.get_rect(center=self.settings_buttons['back'].center)
         self.screen.blit(back_text, back_rect)
@@ -308,7 +313,10 @@ class PlinkoGame:
     def run(self):
         running = True
         while running:
-            # Handle events
+            # Get mouse position for hover effects
+            mouse_pos = pygame.mouse.get_pos()
+            self.update_hover_state(mouse_pos)  # Add this line for hover effects
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -316,9 +324,7 @@ class PlinkoGame:
                     self.handle_click(event.pos)
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        if self.current_state == self.SETTINGS:
-                            self.current_state = self.MENU
-                        elif self.current_state == self.PLAYING:
+                        if self.current_state in [self.SETTINGS, self.PLAYING, self.SHOP]:  # Add SHOP here
                             self.current_state = self.MENU
 
             # Draw current state
@@ -326,14 +332,11 @@ class PlinkoGame:
                 self.draw_menu()
             elif self.current_state == self.SETTINGS:
                 self.draw_settings()
+            elif self.current_state == self.SHOP:  # Add this condition
+                self.draw_shop()
 
-            # Update display
             pygame.display.flip()
-
-            # Control frame rate
             self.clock.tick(60)
-
-        pygame.quit()
 
 
 if __name__ == "__main__":

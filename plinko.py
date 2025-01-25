@@ -2,7 +2,7 @@ import pygame
 import sys
 import json
 import math
-
+import random
 
 class Ball:
     def __init__(self, x, y, radius, color, bet_amount):
@@ -104,9 +104,9 @@ class PlinkoGame:
 
     def drop_ball(self):
         risk_values = [0.02, 0.15, 0.40]  # Easy, Medium, Hard
-        bet_amount = round(self.amount * risk_values[self.selected_risk], 2)  # Round to 2 decimal places
+        bet_amount = self.amount  # Use the full amount selected
 
-        if bet_amount <= self.coins and self.amount > 0:
+        if bet_amount <= self.coins and bet_amount > 0:
             # Calculate the starting position
             first_pin_x = (self.settings['width'] - ((2) * 30)) // 2
             ball_start_x = first_pin_x + 30
@@ -125,10 +125,11 @@ class PlinkoGame:
         return round(value, 2)
 
     def update_balls(self):
-        gravity = 0.5  # Increased gravity
-        bounce_damping = 0.7
+        gravity = 0.5
+        bounce_damping = 0.8  # Increased bounce damping
+        pin_radius = 5
 
-        for ball in self.balls[:]:  # Use slice to allow removal during iteration
+        for ball in self.balls[:]:
             if not ball.active:
                 continue
 
@@ -142,34 +143,60 @@ class PlinkoGame:
                 dx = ball.x - pin_x
                 dy = ball.y - pin_y
                 distance = math.sqrt(dx * dx + dy * dy)
+                min_distance = ball.radius + pin_radius
 
-                if distance < (ball.radius + 5):  # 5 is pin radius
-                    # Calculate bounce direction
-                    angle = math.atan2(dy, dx)
-                    ball.dx = math.cos(angle) * 3  # Increased bounce force
-                    ball.dy = abs(ball.dy) * bounce_damping
+                if distance < min_distance:
+                    # Calculate normal vector from pin to ball
+                    nx = dx / distance
+                    ny = dy / distance
 
-            # Check for wall collisions
+                    # Move ball out of pin
+                    overlap = min_distance - distance
+                    ball.x += nx * overlap
+                    ball.y += ny * overlap
+
+                    # Calculate relative velocity
+                    relative_velocity_x = ball.dx
+                    relative_velocity_y = ball.dy
+
+                    # Calculate impulse
+                    velocity_dot_normal = (relative_velocity_x * nx + relative_velocity_y * ny)
+
+                    # Apply impulse with increased bounce effect
+                    impulse = 2.0 * velocity_dot_normal
+                    ball.dx -= impulse * nx * bounce_damping
+                    ball.dy -= impulse * ny * bounce_damping
+
+                    # Add some random deflection for more natural movement
+                    ball.dx += (random.random() - 0.5) * 0.5
+
+                    # Ensure minimum velocity after bounce
+                    min_velocity = 2
+                    velocity = math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy)
+                    if velocity < min_velocity:
+                        scale = min_velocity / velocity
+                        ball.dx *= scale
+                        ball.dy *= scale
+
+            # Check for wall collisions with more bounce
             if ball.x - ball.radius < 0:
                 ball.x = ball.radius
-                ball.dx *= -0.5
+                ball.dx = abs(ball.dx) * bounce_damping
             elif ball.x + ball.radius > self.settings['width']:
                 ball.x = self.settings['width'] - ball.radius
-                ball.dx *= -0.5
+                ball.dx = -abs(ball.dx) * bounce_damping
 
             # Check if ball has reached multiplier zone
-            multiplier_y = 100 + (15 * 30) + 15  # Same calculation as in draw_game
+            multiplier_y = 100 + (15 * 30) + 15
             if ball.y >= multiplier_y and ball.active:
-                # Find which multiplier zone the ball is in
                 last_row_x = (self.settings['width'] - ((16) * 30)) // 2 - 16
                 slot_index = int((ball.x - last_row_x + 15) // 30)
 
                 if 0 <= slot_index < len(self.multipliers):
-                    # Calculate winnings
                     multiplier = self.multipliers[slot_index]
-                    winnings = round(ball.bet_amount * multiplier, 2)  # Round to 2 decimal places
-                    self.coins = round(self.coins + winnings, 2)  # Round total coins
-                    ball.active = False  # Deactivate ball
+                    winnings = round(ball.bet_amount * multiplier, 2)
+                    self.coins = round(self.coins + winnings, 2)
+                    ball.active = False
 
             # Remove balls that have fallen off screen
             if ball.y > self.settings['height']:
@@ -363,7 +390,7 @@ class PlinkoGame:
 
     def draw_money_counter(self):
         # Create a background rectangle for the entire counter group
-        counter_width = 140  # Width of the entire counter group
+        counter_width = 150  # Width of the entire counter group
         counter_height = 40  # Height of the counter group
         counter_x = self.settings['width'] - counter_width - 10  # 10 pixels from right edge
         counter_y = 15  # 15 pixels from top
@@ -534,6 +561,7 @@ class PlinkoGame:
                     if button_rect.collidepoint(pos):
                         self.hovered_dashboard = button_name
                         break
+
     def draw_shop(self):
         # Draw background
         self.draw_gradient_background()
@@ -565,9 +593,11 @@ class PlinkoGame:
                 if button_name == 'toggle':
                     self.dashboard_extended = not self.dashboard_extended
                 elif button_name == 'increase':
-                    self.amount = round(min(self.amount + 0.1, float(self.coins)), 2)
+                    new_amount = round(self.amount + 0.1, 1)  # Round to 1 decimal place
+                    self.amount = min(new_amount, float(self.coins))
                 elif button_name == 'decrease':
-                    self.amount = round(max(0, self.amount - 0.1), 2)
+                    new_amount = round(self.amount - 0.1, 1)  # Round to 1 decimal place
+                    self.amount = max(0, new_amount)
                 elif button_name == 'risk':
                     self.is_dropdown_open = not self.is_dropdown_open
                 elif button_name.startswith('risk_'):
@@ -765,8 +795,12 @@ class PlinkoGame:
             # Get mouse position for hover effects
             mouse_pos = pygame.mouse.get_pos()
             self.update_hover_state(mouse_pos)
-            # Update dashboard
-            self.update_dashboard()
+
+            # Update game state
+            if self.current_state == self.PLAYING:
+                self.update_dashboard()
+                self.update_balls()  # Make sure this is called!
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False

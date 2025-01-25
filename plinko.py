@@ -271,8 +271,7 @@ class PlinkoGame:
         self.apply_theme()
 
     def apply_theme(self):
-        bg_color = '#2d2d2d' if self.is_dark_mode else '#f0f0f0'
-        fg_color = 'white' if self.is_dark_mode else 'black'
+        bg_color = 'white' if self.is_dark_mode else 'black'
 
         # Update root background
         self.root.configure(bg=bg_color)
@@ -282,14 +281,6 @@ class PlinkoGame:
 
         # Update title
         self.update_title_bg()
-
-        # Force redraw of all rounded buttons
-        for widget in self.main_frame.winfo_children():
-            if isinstance(widget, ttk.Frame):  # Button frame
-                for button in widget.winfo_children():
-                    if isinstance(button, self.RoundedButton):  # RoundedButton
-                        button._draw_button()
-
     def run(self):
         self.root.mainloop()
 

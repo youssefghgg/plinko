@@ -108,7 +108,7 @@ class PlinkoGame:
         # Generate points for title text to follow an arc
         self.title_points = []
         text = "PLINKO!"
-        center_x = (self.settings['width'] // 2) - 10  # Subtract 10 pixels to move left
+        center_x = (self.settings['width'] // 2) - 29  # Subtract 10 pixels to move left
         base_y = 100
         arc_height = 30  # Height of the arc
 

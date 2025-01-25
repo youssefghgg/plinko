@@ -1,15 +1,16 @@
 import pygame
 import sys
-import math
+import json
 
 
 class PlinkoGame:
     def __init__(self):
         pygame.init()
+        # Load or set default settings
+        self.load_settings()
+
         # Set up display
-        self.width = 800
-        self.height = 600
-        self.screen = pygame.display.set_mode((self.width, self.height))
+        self.screen = pygame.display.set_mode((self.settings['width'], self.settings['height']))
         pygame.display.set_caption("Plinko Game")
 
         # Colors
@@ -18,6 +19,7 @@ class PlinkoGame:
         self.BLUE = (0, 100, 255)
         self.GREEN = (0, 255, 0)
         self.RED = (255, 0, 0)
+        self.GRAY = (128, 128, 128)
 
         # Game states
         self.MENU = "menu"
@@ -29,45 +31,73 @@ class PlinkoGame:
         self.title_font = pygame.font.Font(None, 74)
         self.button_font = pygame.font.Font(None, 36)
 
-        # Buttons
-        self.buttons = {
-            'start': pygame.Rect(300, 250, 200, 50),
-            'settings': pygame.Rect(300, 320, 200, 50),
-            'quit': pygame.Rect(300, 390, 200, 50)
-        }
+        # Main menu buttons
+        self.update_button_positions()
 
-        # Game objects
-        self.pegs = []
-        self.ball = None
-        self.setup_pegs()
+        # Settings options
+        self.window_sizes = ["800x600", "1024x768", "1280x720"]
+        self.selected_size_index = self.window_sizes.index(f"{self.settings['width']}x{self.settings['height']}")
 
         # Clock
         self.clock = pygame.time.Clock()
 
-    def setup_pegs(self):
-        # Create a triangle pattern of pegs
-        rows = 8
-        spacing = 50
-        for row in range(rows):
-            for col in range(row + 1):
-                x = self.width // 2 - (row * spacing // 2) + (col * spacing)
-                y = 150 + (row * spacing)
-                self.pegs.append((x, y))
+    def load_settings(self):
+        try:
+            with open('settings.json', 'r') as f:
+                self.settings = json.load(f)
+        except FileNotFoundError:
+            self.settings = {
+                'width': 800,
+                'height': 600,
+                'dark_mode': False
+            }
+            self.save_settings()
+
+    def save_settings(self):
+        with open('settings.json', 'w') as f:
+            json.dump(self.settings, f)
+
+    def update_button_positions(self):
+        width = self.settings['width']
+        self.buttons = {
+            'start': pygame.Rect(width // 2 - 100, 250, 200, 50),
+            'settings': pygame.Rect(width // 2 - 100, 320, 200, 50),
+            'quit': pygame.Rect(width // 2 - 100, 390, 200, 50)
+        }
+
+        # Settings buttons
+        self.settings_buttons = {
+            'size_left': pygame.Rect(width // 2 - 150, 200, 30, 30),
+            'size_right': pygame.Rect(width // 2 + 120, 200, 30, 30),
+            'dark_mode': pygame.Rect(width // 2 - 100, 300, 200, 50),
+            'back': pygame.Rect(width // 2 - 100, 500, 200, 50)
+        }
 
     def draw_gradient_background(self):
-        for y in range(self.height):
-            r = int(100 + (y / self.height) * 155)
-            g = int(150 + (y / self.height) * 105)
-            b = int(255 - (y / self.height) * 105)
-            pygame.draw.line(self.screen, (r, g, b), (0, y), (self.width, y))
+        height = self.settings['height']
+        width = self.settings['width']
+
+        if self.settings['dark_mode']:
+            for y in range(height):
+                r = int(25 + (y / height) * 20)
+                g = int(25 + (y / height) * 20)
+                b = int(45 + (y / height) * 20)
+                pygame.draw.line(self.screen, (r, g, b), (0, y), (width, y))
+        else:
+            for y in range(height):
+                r = int(100 + (y / height) * 155)
+                g = int(150 + (y / height) * 105)
+                b = int(255 - (y / height) * 105)
+                pygame.draw.line(self.screen, (r, g, b), (0, y), (width, y))
 
     def draw_menu(self):
         # Draw background
         self.draw_gradient_background()
 
         # Draw title
-        title = self.title_font.render("PLINKO!", True, self.BLACK)
-        title_rect = title.get_rect(center=(self.width // 2, 100))
+        title_color = self.WHITE if self.settings['dark_mode'] else self.BLACK
+        title = self.title_font.render("PLINKO!", True, title_color)
+        title_rect = title.get_rect(center=(self.settings['width'] // 2, 100))
         self.screen.blit(title, title_rect)
 
         # Draw buttons
@@ -81,86 +111,82 @@ class PlinkoGame:
             text_rect = text.get_rect(center=button_rect.center)
             self.screen.blit(text, text_rect)
 
-    def draw_game(self):
-        # Draw background
-        self.draw_gradient_background()
-
-        # Draw pegs
-        for peg in self.pegs:
-            pygame.draw.circle(self.screen, self.BLACK, peg, 5)
-
-        # Draw ball if it exists
-        if self.ball:
-            pygame.draw.circle(self.screen, self.RED,
-                               (int(self.ball['x']), int(self.ball['y'])), 10)
-
     def draw_settings(self):
         # Draw background
         self.draw_gradient_background()
 
         # Draw title
-        title = self.title_font.render("Settings", True, self.BLACK)
-        title_rect = title.get_rect(center=(self.width // 2, 100))
+        title_color = self.WHITE if self.settings['dark_mode'] else self.BLACK
+        title = self.title_font.render("Settings", True, title_color)
+        title_rect = title.get_rect(center=(self.settings['width'] // 2, 100))
         self.screen.blit(title, title_rect)
 
-        # Add back button
-        back_button = pygame.Rect(300, 500, 200, 50)
-        pygame.draw.rect(self.screen, self.BLUE, back_button, border_radius=10)
+        # Draw window size selector
+        text_color = self.WHITE if self.settings['dark_mode'] else self.BLACK
+        size_text = self.button_font.render("Window Size:", True, text_color)
+        size_rect = size_text.get_rect(center=(self.settings['width'] // 2, 170))
+        self.screen.blit(size_text, size_rect)
+
+        # Draw arrows and current size
+        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['size_left'], border_radius=5)
+        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['size_right'], border_radius=5)
+
+        # Draw arrow symbols
+        left_arrow = self.button_font.render("<", True, self.WHITE)
+        right_arrow = self.button_font.render(">", True, self.WHITE)
+        self.screen.blit(left_arrow, self.settings_buttons['size_left'].move(10, 0))
+        self.screen.blit(right_arrow, self.settings_buttons['size_right'].move(10, 0))
+
+        # Draw current size
+        size_text = self.button_font.render(self.window_sizes[self.selected_size_index], True, text_color)
+        size_rect = size_text.get_rect(center=(self.settings['width'] // 2, 215))
+        self.screen.blit(size_text, size_rect)
+
+        # Draw dark mode toggle
+        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['dark_mode'], border_radius=10)
+        dark_text = self.button_font.render(f"Dark Mode: {'On' if self.settings['dark_mode'] else 'Off'}",
+                                            True, self.WHITE)
+        dark_rect = dark_text.get_rect(center=self.settings_buttons['dark_mode'].center)
+        self.screen.blit(dark_text, dark_rect)
+
+        # Draw back button
+        pygame.draw.rect(self.screen, self.BLUE, self.settings_buttons['back'], border_radius=10)
         back_text = self.button_font.render("Back", True, self.WHITE)
-        back_rect = back_text.get_rect(center=back_button.center)
+        back_rect = back_text.get_rect(center=self.settings_buttons['back'].center)
         self.screen.blit(back_text, back_rect)
+
+    def apply_window_size(self, size_str):
+        width, height = map(int, size_str.split('x'))
+        self.settings['width'] = width
+        self.settings['height'] = height
+        self.screen = pygame.display.set_mode((width, height))
+        self.update_button_positions()
+        self.save_settings()
 
     def handle_click(self, pos):
         if self.current_state == self.MENU:
             for button_name, button_rect in self.buttons.items():
                 if button_rect.collidepoint(pos):
                     if button_name == 'start':
-                        self.current_state = self.PLAYING
+                        print("Start button clicked - functionality removed as requested")
                     elif button_name == 'settings':
                         self.current_state = self.SETTINGS
                     elif button_name == 'quit':
                         pygame.quit()
                         sys.exit()
 
-        elif self.current_state == self.PLAYING:
-            # Drop a new ball
-            if pos[1] < 150:  # Only if clicking above the pegs
-                self.ball = {
-                    'x': pos[0],
-                    'y': pos[1],
-                    'dy': 0,  # Vertical velocity
-                    'dx': 0  # Horizontal velocity
-                }
-
         elif self.current_state == self.SETTINGS:
-            back_button = pygame.Rect(300, 500, 200, 50)
-            if back_button.collidepoint(pos):
+            if self.settings_buttons['back'].collidepoint(pos):
                 self.current_state = self.MENU
-
-    def update_ball(self):
-        if self.ball:
-            # Apply gravity
-            self.ball['dy'] += 0.5
-
-            # Update position
-            self.ball['x'] += self.ball['dx']
-            self.ball['y'] += self.ball['dy']
-
-            # Check for collisions with pegs
-            for peg in self.pegs:
-                dx = self.ball['x'] - peg[0]
-                dy = self.ball['y'] - peg[1]
-                distance = math.sqrt(dx * dx + dy * dy)
-
-                if distance < 15:  # Ball + peg radius
-                    # Bounce off peg
-                    angle = math.atan2(dy, dx)
-                    self.ball['dx'] = math.cos(angle) * 5
-                    self.ball['dy'] = math.sin(angle) * 5
-
-            # Remove ball if it goes off screen
-            if self.ball['y'] > self.height:
-                self.ball = None
+            elif self.settings_buttons['dark_mode'].collidepoint(pos):
+                self.settings['dark_mode'] = not self.settings['dark_mode']
+                self.save_settings()
+            elif self.settings_buttons['size_left'].collidepoint(pos):
+                self.selected_size_index = (self.selected_size_index - 1) % len(self.window_sizes)
+                self.apply_window_size(self.window_sizes[self.selected_size_index])
+            elif self.settings_buttons['size_right'].collidepoint(pos):
+                self.selected_size_index = (self.selected_size_index + 1) % len(self.window_sizes)
+                self.apply_window_size(self.window_sizes[self.selected_size_index])
 
     def run(self):
         running = True
@@ -173,17 +199,14 @@ class PlinkoGame:
                     self.handle_click(event.pos)
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        self.current_state = self.MENU
+                        if self.current_state == self.SETTINGS:
+                            self.current_state = self.MENU
+                        elif self.current_state == self.PLAYING:
+                            self.current_state = self.MENU
 
-            # Clear screen
-            self.screen.fill(self.WHITE)
-
-            # Update and draw based on current state
+            # Draw current state
             if self.current_state == self.MENU:
                 self.draw_menu()
-            elif self.current_state == self.PLAYING:
-                self.update_ball()
-                self.draw_game()
             elif self.current_state == self.SETTINGS:
                 self.draw_settings()
 

@@ -580,13 +580,21 @@ class PlinkoGame:
             text_rect = text.get_rect(center=multiplier_rect.center)
             self.screen.blit(text, text_rect)
 
+    def drop_ball(self):
+        risk_values = [0.02, 0.15, 0.40]  # Corresponding to Easy, Medium, Hard
+        bet_amount = self.amount * risk_values[self.selected_risk]
+        if bet_amount <= self.coins:
+            print(f"Dropping ball with bet: {bet_amount}")
+            # Add ball dropping logic here
+
     def run(self):
         running = True
         while running:
             # Get mouse position for hover effects
             mouse_pos = pygame.mouse.get_pos()
             self.update_hover_state(mouse_pos)
-
+            # Update dashboard
+            self.update_dashboard()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False

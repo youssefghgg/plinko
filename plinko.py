@@ -35,8 +35,25 @@ class PlinkoGame:
         self.button_font = pygame.font.Font(None, 36)
         self.coin_font = pygame.font.Font(None, 40)
 
-        # Money count
-        self.coins = 0
+        # Multiplier values from left to right
+        self.multipliers = [110, 41, 10, 5, 3, 2, 1.5, 1, 0.5, 0.3, 0.5, 1, 1.5, 2, 3, 5, 10, 41, 110]
+
+        # Colors for multipliers (from highest to lowest)
+        self.multiplier_colors = [
+            (80, 0, 0),  # Oxblood (110x)
+            (139, 0, 0),  # Dark Red (41x)
+            (178, 34, 34),  # Firebrick Red (10x)
+            (220, 20, 60),  # Crimson (5x)
+            (255, 0, 0),  # Red (3x)
+            (255, 69, 0),  # Red-Orange (2x)
+            (255, 99, 71),  # Tomato (1.5x)
+            (255, 127, 80),  # Coral (1x)
+            (255, 165, 0),  # Orange (0.5x)
+            (255, 215, 0),  # Yellow (0.3x)
+        ]
+
+        # Set initial coins
+        self.coins = 100
 
         # Hover state
         self.hovered_button = None
@@ -51,7 +68,8 @@ class PlinkoGame:
         # Settings options
         self.window_sizes = ["800x600", "1024x768", "1280x720"]
         self.selected_size_index = self.window_sizes.index(f"{self.settings['width']}x{self.settings['height']}")
-
+        # Add pin positions list
+        self.pin_positions = []
         # Clock
         self.clock = pygame.time.Clock()
 
@@ -279,6 +297,13 @@ class PlinkoGame:
             if self.settings_buttons['back'].collidepoint(pos):
                 self.hovered_button = 'back'
 
+        # Check game buttons
+        elif self.current_state == self.PLAYING:
+            if hasattr(self, 'game_back_button') and self.game_back_button.collidepoint(pos):
+                self.hovered_button = 'game_back'
+            elif hasattr(self, 'game_shop_button') and self.game_shop_button.collidepoint(pos):
+                self.hovered_button = 'game_shop'
+
     def draw_shop(self):
         # Draw background
         self.draw_gradient_background()
@@ -310,7 +335,7 @@ class PlinkoGame:
             for button_name, button_rect in self.buttons.items():
                 if button_rect.collidepoint(pos):
                     if button_name == 'start':
-                        print("Start button clicked - functionality removed as requested")
+                        self.current_state = self.PLAYING  # Changed this line
                     elif button_name == 'settings':
                         self.current_state = self.SETTINGS
                     elif button_name == 'quit':
@@ -330,16 +355,126 @@ class PlinkoGame:
                 self.selected_size_index = (self.selected_size_index + 1) % len(self.window_sizes)
                 self.apply_window_size(self.window_sizes[self.selected_size_index])
 
+
         elif self.current_state == self.SHOP:
             if self.settings_buttons['back'].collidepoint(pos):
                 self.current_state = self.MENU
+
+        elif self.current_state == self.PLAYING:
+            if hasattr(self, 'game_back_button') and self.game_back_button.collidepoint(pos):
+                self.current_state = self.MENU
+            elif hasattr(self, 'game_shop_button') and self.game_shop_button.collidepoint(pos):
+                self.current_state = self.SHOP
+
+    def draw_game(self):
+        # Draw background
+        self.draw_gradient_background()
+
+        # Draw back button (top left)
+        back_button = pygame.Rect(10, 10, 100, 40)
+        pygame.draw.rect(self.screen,
+                         self.DARK_BLUE if self.hovered_button == 'game_back' else self.BLUE,
+                         back_button, border_radius=10)
+        back_text = self.button_font.render("Back", True, self.WHITE)
+        back_rect = back_text.get_rect(center=back_button.center)
+        self.screen.blit(back_text, back_rect)
+        self.game_back_button = back_button
+
+        # Draw shop menu button (top right)
+        shop_button = pygame.Rect(self.settings['width'] - 205, 10, 200, 40)
+        pygame.draw.rect(self.screen,
+                         self.DARK_BLUE if self.hovered_button == 'game_shop' else self.BLUE,
+                         shop_button, border_radius=10)
+        shop_text = self.button_font.render("Shop Menu", True, self.WHITE)
+        shop_rect = shop_text.get_rect(center=shop_button.center)
+        self.screen.blit(shop_text, shop_rect)
+        self.game_shop_button = shop_button
+
+        # Draw Plinko pins
+        pin_radius = 5
+        start_y = 100  # Starting Y position
+        vertical_spacing = 30  # Space between rows
+        horizontal_spacing = 30  # Space between pins in the same row
+
+        # Calculate the width of the widest row to center the entire pin layout
+        max_pins_in_row = 17  # Changed to 17 for the bottom row
+        total_width = (max_pins_in_row - 1) * horizontal_spacing
+        start_x = (self.settings['width'] - total_width) // 2
+
+        # Store pin positions for collision detection
+        self.pin_positions = []
+
+        # Draw pins row by row
+        for row in range(16):  # 16 rows total
+            # Calculate number of pins in this row
+            pins_in_row = row + 3  # First row has 3 pins, each row adds one more
+
+            # Calculate x position for the first pin in this row to center the row
+            row_width = (pins_in_row - 1) * horizontal_spacing
+            row_start_x = (self.settings['width'] - row_width) // 2
+
+            # Draw each pin in the row
+            for pin in range(pins_in_row):
+                x = row_start_x + (pin * horizontal_spacing)
+                y = start_y + (row * vertical_spacing)
+
+                # Store pin position
+                self.pin_positions.append((x, y))
+
+                # Draw pin
+                pygame.draw.circle(self.screen, self.WHITE, (x, y), pin_radius)
+                # Draw a slightly smaller inner circle for 3D effect
+                pygame.draw.circle(self.screen, self.GRAY, (x, y), pin_radius - 2)
+
+        # Draw multipliers
+        multiplier_y = start_y + (15 * vertical_spacing) + 15  # Position between last row pins
+        last_row_x = (self.settings['width'] - ((16) * horizontal_spacing)) // 2 - 16  # Center multiplier boxes
+
+        for i, multiplier in enumerate(self.multipliers):
+            # Calculate x position to be between pins
+            x = last_row_x + (i * horizontal_spacing) - (horizontal_spacing // 2)
+
+            # Calculate color based on multiplier value
+            if multiplier >= 110:
+                color = self.multiplier_colors[0]
+            elif multiplier >= 41:
+                color = self.multiplier_colors[1]
+            elif multiplier >= 10:
+                color = self.multiplier_colors[2]
+            elif multiplier >= 5:
+                color = self.multiplier_colors[3]
+            elif multiplier >= 3:
+                color = self.multiplier_colors[4]
+            elif multiplier >= 2:
+                color = self.multiplier_colors[5]
+            elif multiplier >= 1.5:
+                color = self.multiplier_colors[6]
+            elif multiplier >= 1:
+                color = self.multiplier_colors[7]
+            elif multiplier >= 0.5:
+                color = self.multiplier_colors[8]
+            else:  # 0.3x
+                color = self.multiplier_colors[9]
+
+            # Draw multiplier box
+            multiplier_width = 25  # Made narrower to fit between pins
+            multiplier_height = 25  # Made shorter to fit better
+            multiplier_rect = pygame.Rect(x - (multiplier_width // 2), multiplier_y,
+                                          multiplier_width, multiplier_height)
+            pygame.draw.rect(self.screen, color, multiplier_rect, border_radius=5)
+
+            # Draw multiplier text with smaller font
+            multiplier_font = pygame.font.Font(None, 20)  # Smaller font size
+            text = multiplier_font.render(f"{multiplier}x", True, self.WHITE)
+            text_rect = text.get_rect(center=multiplier_rect.center)
+            self.screen.blit(text, text_rect)
 
     def run(self):
         running = True
         while running:
             # Get mouse position for hover effects
             mouse_pos = pygame.mouse.get_pos()
-            self.update_hover_state(mouse_pos)  # Add this line for hover effects
+            self.update_hover_state(mouse_pos)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -348,7 +483,7 @@ class PlinkoGame:
                     self.handle_click(event.pos)
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        if self.current_state in [self.SETTINGS, self.PLAYING, self.SHOP]:  # Add SHOP here
+                        if self.current_state in [self.SETTINGS, self.PLAYING, self.SHOP]:
                             self.current_state = self.MENU
 
             # Draw current state
@@ -356,8 +491,10 @@ class PlinkoGame:
                 self.draw_menu()
             elif self.current_state == self.SETTINGS:
                 self.draw_settings()
-            elif self.current_state == self.SHOP:  # Add this condition
+            elif self.current_state == self.SHOP:
                 self.draw_shop()
+            elif self.current_state == self.PLAYING:
+                self.draw_game()
 
             pygame.display.flip()
             self.clock.tick(60)

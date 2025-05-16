@@ -96,9 +96,10 @@ class PlinkoGame:
         self.risks = ["Easy (2%)", "Medium (15%)", "Hard (40%)"]
         self.selected_risk = 0
         self.is_dropdown_open = False
-        self.ball_radius = 10
+        self.ball_radius = 9.5
         self.dashboard_buttons = {}
         self.hovered_dashboard = None  # For hover effects
+
         # Clock
         self.clock = pygame.time.Clock()
 
@@ -126,8 +127,15 @@ class PlinkoGame:
 
     def update_balls(self):
         gravity = 0.5
-        bounce_damping = 0.8  # Increased bounce damping
+        bounce_damping = 0.65  # Slightly increased from 0.6 for more bounce
         pin_radius = 5
+
+        # Calculate invisible wall positions based on pin layout
+        left_wall_x = (self.settings['width'] - ((16) * 30)) // 2 - 20
+        right_wall_x = self.settings['width'] - left_wall_x
+
+        # Calculate center position for bias
+        center_x = self.settings['width'] / 2
 
         for ball in self.balls[:]:
             if not ball.active:
@@ -137,6 +145,19 @@ class PlinkoGame:
             ball.dy += gravity
             ball.x += ball.dx
             ball.y += ball.dy
+
+            # Add subtle center bias
+            distance_from_center = ball.x - center_x
+            center_force = -distance_from_center * 0.002  # Subtle force towards center
+            ball.dx += center_force
+
+            # Check for invisible wall collisions
+            if ball.x - ball.radius < left_wall_x:
+                ball.x = left_wall_x + ball.radius
+                ball.dx = abs(ball.dx) * 0.6  # Slightly increased wall bounce
+            elif ball.x + ball.radius > right_wall_x:
+                ball.x = right_wall_x - ball.radius
+                ball.dx = -abs(ball.dx) * 0.6  # Slightly increased wall bounce
 
             # Check for pin collisions
             for pin_x, pin_y in self.pin_positions:
@@ -159,32 +180,27 @@ class PlinkoGame:
                     relative_velocity_x = ball.dx
                     relative_velocity_y = ball.dy
 
-                    # Calculate impulse
+                    # Calculate impulse with slightly increased bounce
                     velocity_dot_normal = (relative_velocity_x * nx + relative_velocity_y * ny)
-
-                    # Apply impulse with increased bounce effect
-                    impulse = 2.0 * velocity_dot_normal
+                    impulse = 1.6 * velocity_dot_normal  # Increased from 1.5 for more bounce
                     ball.dx -= impulse * nx * bounce_damping
                     ball.dy -= impulse * ny * bounce_damping
 
-                    # Add some random deflection for more natural movement
-                    ball.dx += (random.random() - 0.5) * 0.5
+                    # Add slightly random deflection with center bias
+                    random_deflection = (random.random() - 0.5) * 0.35
+                    if ball.x < center_x:
+                        random_deflection = abs(random_deflection) * 0.7  # Bias towards right
+                    else:
+                        random_deflection = -abs(random_deflection) * 0.7  # Bias towards left
+                    ball.dx += random_deflection
 
                     # Ensure minimum velocity after bounce
-                    min_velocity = 2
+                    min_velocity = 1.6  # Slightly increased minimum velocity
                     velocity = math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy)
                     if velocity < min_velocity:
                         scale = min_velocity / velocity
                         ball.dx *= scale
                         ball.dy *= scale
-
-            # Check for wall collisions with more bounce
-            if ball.x - ball.radius < 0:
-                ball.x = ball.radius
-                ball.dx = abs(ball.dx) * bounce_damping
-            elif ball.x + ball.radius > self.settings['width']:
-                ball.x = self.settings['width'] - ball.radius
-                ball.dx = -abs(ball.dx) * bounce_damping
 
             # Check if ball has reached multiplier zone
             multiplier_y = 100 + (15 * 30) + 15
@@ -234,20 +250,7 @@ class PlinkoGame:
             self.screen.blit(balance_text, (self.dashboard_x + 10, 20))
 
             # Draw coin symbol and amount for balance
-            coin_x = self.dashboard_x + 20
-            coin_y = 55
-            pygame.draw.circle(self.screen, self.GOLD, (coin_x, coin_y), 15)
-            pygame.draw.circle(self.screen, (200, 170, 0), (coin_x, coin_y), 12)
-
-            balance_amount = self.button_font.render(str(self.coins), True, self.WHITE)
-            self.screen.blit(balance_amount, (coin_x + 25, coin_y - 10))
-
-            # Draw Bet Amount label
-            amount_label = self.button_font.render("Bet Amount:", True, self.WHITE)
-            self.screen.blit(amount_label, (self.dashboard_x + 10, 100))
-
-            # Draw Amount box with coin symbol
-            amount_box = pygame.Rect(self.dashboard_x + 10, 130, 140, 40)
+            amount_box = pygame.Rect(self.dashboard_x + 10, 130, 100, 40)  # Made narrower to fit new buttons
             pygame.draw.rect(self.screen,
                              (220, 220, 220) if self.hovered_dashboard == 'amount' else self.WHITE,
                              amount_box, border_radius=5)
@@ -266,6 +269,28 @@ class PlinkoGame:
 
             # Draw amount adjustment buttons
             button_size = 30
+            spacing = 5
+
+            # Half (÷2) button
+            half_button = pygame.Rect(self.dashboard_x + 115, 130, button_size, button_size)
+            pygame.draw.rect(self.screen,
+                             self.DARK_BLUE if self.hovered_dashboard == 'half' else self.BLUE,
+                             half_button, border_radius=5)
+            half_text = self.button_font.render("÷2", True, self.WHITE)
+            half_rect = half_text.get_rect(center=half_button.center)
+            self.screen.blit(half_text, half_rect)
+            self.dashboard_buttons['half'] = half_button
+
+            # Double (×2) button
+            double_button = pygame.Rect(self.dashboard_x + 115, 130 + button_size + spacing, button_size, button_size)
+            pygame.draw.rect(self.screen,
+                             self.DARK_BLUE if self.hovered_dashboard == 'double' else self.BLUE,
+                             double_button, border_radius=5)
+            double_text = self.button_font.render("×2", True, self.WHITE)
+            double_rect = double_text.get_rect(center=double_button.center)
+            self.screen.blit(double_text, double_rect)
+            self.dashboard_buttons['double'] = double_button
+
             # Decrease button
             decrease_button = pygame.Rect(self.dashboard_x + 160, 130, button_size, button_size)
             pygame.draw.rect(self.screen,
@@ -277,7 +302,7 @@ class PlinkoGame:
             self.dashboard_buttons['decrease'] = decrease_button
 
             # Increase button
-            increase_button = pygame.Rect(self.dashboard_x + 160, 140 + button_size, button_size, button_size)
+            increase_button = pygame.Rect(self.dashboard_x + 160, 130 + button_size + spacing, button_size, button_size)
             pygame.draw.rect(self.screen,
                              self.DARK_BLUE if self.hovered_dashboard == 'increase' else self.BLUE,
                              increase_button, border_radius=5)
@@ -593,11 +618,16 @@ class PlinkoGame:
                 if button_name == 'toggle':
                     self.dashboard_extended = not self.dashboard_extended
                 elif button_name == 'increase':
-                    new_amount = round(self.amount + 0.1, 1)  # Round to 1 decimal place
+                    new_amount = round(self.amount + 0.1, 1)
                     self.amount = min(new_amount, float(self.coins))
                 elif button_name == 'decrease':
-                    new_amount = round(self.amount - 0.1, 1)  # Round to 1 decimal place
+                    new_amount = round(self.amount - 0.1, 1)
                     self.amount = max(0, new_amount)
+                elif button_name == 'double':
+                    new_amount = round(self.amount * 2, 1)
+                    self.amount = min(new_amount, float(self.coins))
+                elif button_name == 'half':
+                    self.amount = round(self.amount / 2, 1)
                 elif button_name == 'risk':
                     self.is_dropdown_open = not self.is_dropdown_open
                 elif button_name.startswith('risk_'):

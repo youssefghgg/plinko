@@ -1,15 +1,16 @@
 import pygame
-from ui.base_screen import BaseScreen
+from .base_screen import BaseScreen
 
 class ShopScreen(BaseScreen):
-    def __init__(self, settings_manager, on_back, coins):
+    def __init__(self, settings_manager, on_back, coins, purchased_skins=None):
         super().__init__(settings_manager)
         
         # Callback function
         self.on_back = on_back
         
-        # Player coins
+        # Player coins and purchased skins
         self.coins = coins
+        self.purchased_skins = purchased_skins or []
         
         # Available items
         self.items = [
@@ -17,8 +18,8 @@ class ShopScreen(BaseScreen):
             {"name": "500 Coins", "price": 3.99, "coins": 500, "id": "coins_500"},
             {"name": "1000 Coins", "price": 7.99, "coins": 1000, "id": "coins_1000"},
             {"name": "5000 Coins", "price": 34.99, "coins": 5000, "id": "coins_5000"},
-            {"name": "Gold Ball", "price": 500, "id": "ball_gold", "description": "A shiny gold ball"},
-            {"name": "Rainbow Ball", "price": 1000, "id": "ball_rainbow", "description": "Color-changing ball"},
+            {"name": "Gold Ball", "price": 500, "id": "ball_gold", "description": "A shiny gold ball", "skin": "gold"},
+            {"name": "Rainbow Ball", "price": 1000, "id": "ball_rainbow", "description": "Color-changing ball", "skin": "rainbow"},
             {"name": "Lucky Charm", "price": 2000, "id": "charm_luck", "description": "Slightly increases your odds"}
         ]
         
@@ -92,18 +93,42 @@ class ShopScreen(BaseScreen):
         
         # Draw scroll buttons if needed
         if self.max_scroll > 0:
-            self.draw_button(screen, 'scroll_up', self.buttons['scroll_up'], "▲")
-            self.draw_button(screen, 'scroll_down', self.buttons['scroll_down'], "▼")
+            # Draw up arrow (triangle)
+            self.draw_button(screen, 'scroll_up', self.buttons['scroll_up'], "")
+            # Draw actual triangle on the button
+            up_button = self.buttons['scroll_up']
+            pygame.draw.polygon(screen, self.WHITE, [
+                (up_button.centerx, up_button.top + 10),
+                (up_button.left + 10, up_button.bottom - 10),
+                (up_button.right - 10, up_button.bottom - 10)
+            ])
+            
+            # Draw down arrow (triangle)
+            self.draw_button(screen, 'scroll_down', self.buttons['scroll_down'], "")
+            # Draw actual triangle on the button
+            down_button = self.buttons['scroll_down']
+            pygame.draw.polygon(screen, self.WHITE, [
+                (down_button.centerx, down_button.bottom - 10),
+                (down_button.left + 10, down_button.top + 10),
+                (down_button.right - 10, down_button.top + 10)
+            ])
             
         # Draw items
         for i in range(self.scroll_offset, min(self.scroll_offset + 3, len(self.items))):
             item = self.items[i]
             button_name = f'item_{i}'
             
-            # Draw item button with special coloring if selected
+            # Check if item is already purchased (skins only)
+            already_purchased = False
+            if "skin" in item and item["skin"] in self.purchased_skins:
+                already_purchased = True
+            
+            # Draw item button with special coloring if selected or purchased
             color = self.DARK_BLUE if self.hovered_button == button_name else self.BLUE
-            if self.selected_item == i:
-                color = (0, 150, 0)  # Green when selected
+            if already_purchased:
+                color = (0, 100, 0)  # Dark green for purchased
+            elif self.selected_item == i:
+                color = (0, 150, 0)  # Brighter green when selected
                 
             # Draw item shadow
             shadow_rect = pygame.Rect(self.buttons[button_name].left + 3, self.buttons[button_name].top + 3,
@@ -127,9 +152,14 @@ class ShopScreen(BaseScreen):
                 price_rect = price_text.get_rect(midbottom=(self.buttons[button_name].centerx, self.buttons[button_name].bottom - 15))
                 screen.blit(price_text, price_rect)
             else:  # Item purchase
-                price_text = self.button_font.render(f"{item['price']} coins", True, self.GOLD)
-                price_rect = price_text.get_rect(midbottom=(self.buttons[button_name].centerx, self.buttons[button_name].bottom - 15))
-                screen.blit(price_text, price_rect)
+                # Show "Purchased" text for already purchased items
+                if already_purchased:
+                    status_text = self.button_font.render("Purchased", True, self.GOLD)
+                else:
+                    status_text = self.button_font.render(f"{item['price']} coins", True, self.GOLD)
+                
+                status_rect = status_text.get_rect(midbottom=(self.buttons[button_name].centerx, self.buttons[button_name].bottom - 15))
+                screen.blit(status_text, status_rect)
                 
                 if "description" in item:
                     desc_text = pygame.font.Font(None, 24).render(item["description"], True, self.WHITE)
@@ -160,12 +190,23 @@ class ShopScreen(BaseScreen):
                         # Here we would launch a payment processor
                         # For now, let's just add the coins (simulate purchase)
                         self.coins += item["coins"]
-                        # Return None as we don't want to change the state
                         return {"add_coins": item["coins"]}
                     elif self.coins >= item["price"]:  # In-game purchase
+                        # Check if item is already purchased (for skins)
+                        if "skin" in item and item["skin"] in self.purchased_skins:
+                            # Already purchased, do nothing
+                            return None
+                            
                         # Process item purchase
                         self.coins -= item["price"]
-                        # Return None as we don't want to change the state
-                        return {"purchase_item": item["id"], "cost": item["price"]}
                         
+                        # Return information about the purchased item
+                        if "skin" in item:
+                            return {"purchase_item": item["id"], "cost": item["price"], "effect": "change_skin", "skin": item["skin"]}
+                        elif item["id"] == "charm_luck":
+                            # Lucky charm provides 20 minutes (1200 seconds) of luck
+                            return {"purchase_item": item["id"], "cost": item["price"], "effect": "lucky_charm", "duration": 1200}
+                        else:
+                            return {"purchase_item": item["id"], "cost": item["price"]}
+                    
         return None  # No state change 

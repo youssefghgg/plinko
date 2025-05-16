@@ -1,5 +1,5 @@
 import pygame
-from ui.base_screen import BaseScreen
+from .base_screen import BaseScreen
 
 class Dashboard:
     def __init__(self, settings_manager, on_drop_ball, coins):
@@ -55,10 +55,21 @@ class Dashboard:
         pygame.draw.rect(screen,
                         (0, 50, 150) if self.hovered_button == 'toggle' else self.BLUE,
                         toggle_button, border_radius=5)
-        pygame.draw.polygon(screen, self.WHITE,
-                           [(toggle_button.centerx - 5, toggle_button.centery - 10),
-                            (toggle_button.centerx + 5, toggle_button.centery),
-                            (toggle_button.centerx - 5, toggle_button.centery + 10)])
+        
+        # Determine arrow direction based on dashboard state
+        if self.dashboard_extended:
+            # Show "<" arrow (pointing left) when extended
+            pygame.draw.polygon(screen, self.WHITE,
+                              [(toggle_button.centerx + 5, toggle_button.centery - 10),
+                               (toggle_button.centerx - 5, toggle_button.centery),
+                               (toggle_button.centerx + 5, toggle_button.centery + 10)])
+        else:
+            # Show ">" arrow (pointing right) when collapsed
+            pygame.draw.polygon(screen, self.WHITE,
+                              [(toggle_button.centerx - 5, toggle_button.centery - 10),
+                               (toggle_button.centerx + 5, toggle_button.centery),
+                               (toggle_button.centerx - 5, toggle_button.centery + 10)])
+            
         self.dashboard_buttons['toggle'] = toggle_button
         
         # Only draw controls if dashboard is somewhat visible
@@ -210,24 +221,35 @@ class Dashboard:
         for button_name, button_rect in self.dashboard_buttons.items():
             if button_rect.collidepoint(pos):
                 if button_name == 'toggle':
+                    # Ensure we properly flip the dashboard state
                     self.dashboard_extended = not self.dashboard_extended
+                    return True  # Return True to indicate click was handled
                 elif button_name == 'increase':
                     new_amount = round(self.amount + 0.1, 1)
                     self.amount = min(new_amount, float(self.coins))
+                    return True
                 elif button_name == 'decrease':
                     new_amount = round(self.amount - 0.1, 1)
                     self.amount = max(0, new_amount)
+                    return True
                 elif button_name == 'double':
                     new_amount = round(self.amount * 2, 1)
                     self.amount = min(new_amount, float(self.coins))
+                    return True
                 elif button_name == 'half':
                     self.amount = round(self.amount / 2, 1)
+                    return True
                 elif button_name == 'risk':
                     self.is_dropdown_open = not self.is_dropdown_open
+                    return True
                 elif button_name.startswith('risk_'):
                     self.selected_risk = int(button_name.split('_')[1])
                     self.is_dropdown_open = False
+                    return True
                 elif button_name == 'drop_ball':
-                    self.on_drop_ball(self.amount)
-                return True
-        return False 
+                    # Ensure the coin balance updates properly
+                    if self.amount > 0 and self.amount <= self.coins:
+                        self.on_drop_ball(self.amount)
+                    return True
+                
+        return False  # No button clicked 

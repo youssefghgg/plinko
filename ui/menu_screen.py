@@ -1,10 +1,10 @@
 import pygame
 import math
 import random
-from ui.base_screen import BaseScreen
+from .base_screen import BaseScreen
 
 class MenuScreen(BaseScreen):
-    def __init__(self, settings_manager, on_start, on_settings, on_shop, on_quit):
+    def __init__(self, settings_manager, on_start, on_settings, on_shop, on_quit, on_skins=None):
         super().__init__(settings_manager)
         
         # Callback functions
@@ -12,6 +12,7 @@ class MenuScreen(BaseScreen):
         self.on_settings = on_settings 
         self.on_shop = on_shop
         self.on_quit = on_quit
+        self.on_skins = on_skins or (lambda: None)  # Default no-op if not provided
         
         # Title animation properties
         self.title_points = []
@@ -60,7 +61,7 @@ class MenuScreen(BaseScreen):
         button_width = 220
         button_height = 60
         button_spacing = 20
-        start_y = height // 2
+        start_y = (height // 2) - 60  # Moved up 60px
         
         self.buttons = {
             'start': pygame.Rect(width // 2 - button_width // 2, 
@@ -72,8 +73,11 @@ class MenuScreen(BaseScreen):
             'shop': pygame.Rect(width // 2 - button_width // 2,
                               start_y + 2 * (button_height + button_spacing),
                               button_width, button_height),
+            'skins': pygame.Rect(width // 2 - button_width // 2,
+                              start_y + 3 * (button_height + button_spacing),
+                              button_width, button_height),
             'quit': pygame.Rect(width // 2 - button_width // 2, 
-                              start_y + 3 * (button_height + button_spacing), 
+                              start_y + 4 * (button_height + button_spacing), 
                               button_width, button_height)
         }
         
@@ -268,6 +272,7 @@ class MenuScreen(BaseScreen):
             'start': 'Play Game',
             'settings': 'Settings',
             'shop': 'Shop',
+            'skins': 'Skins',
             'quit': 'Quit'
         }
         
@@ -291,6 +296,8 @@ class MenuScreen(BaseScreen):
                     return self.on_settings()
                 elif button_name == 'shop' or button_name == 'shop_direct':
                     return self.on_shop()
+                elif button_name == 'skins':
+                    return self.on_skins()
                 elif button_name == 'quit':
                     return self.on_quit()
                     

@@ -1,12 +1,12 @@
 import pygame
 import math
 import random
-from ui.base_screen import BaseScreen
+from .base_screen import BaseScreen
 from core.game_objects import Ball, Pin
-from ui.dashboard import Dashboard
+from .dashboard import Dashboard
 
 class GameScreen(BaseScreen):
-    def __init__(self, settings_manager, on_back, on_shop):
+    def __init__(self, settings_manager, on_back, on_shop, active_skin="default"):
         super().__init__(settings_manager)
         
         # Callbacks
@@ -34,6 +34,11 @@ class GameScreen(BaseScreen):
             (255, 165, 0),  # Orange (0.5x)
             (255, 215, 0),  # Yellow (0.3x)
         ]
+        
+        # Special effects and skins
+        self.active_ball_skin = active_skin  # Use the provided skin
+        self.lucky_charm_active = False
+        self.lucky_charm_time = 0
         
         # Create dashboard
         self.dashboard = Dashboard(settings_manager, self.drop_ball, self.coins)
@@ -126,14 +131,41 @@ class GameScreen(BaseScreen):
         if bet_amount <= self.coins and bet_amount > 0:
             width = self.settings_manager.get_setting('width')
             
-            # Calculate the starting position
-            first_pin_x = (width - ((2) * 30)) // 2
-            ball_start_x = first_pin_x + 30
+            # Calculate the starting position - more centered
+            center_x = width / 2
+            random_offset = random.uniform(-20, 20)  # Random starting position
+            ball_start_x = center_x + random_offset
             ball_start_y = 70
             
+            # Choose ball color based on active skin
+            ball_color = (255, 200, 0)  # Default gold
+            
+            # Apply the correct skin color
+            if self.active_ball_skin == "gold":
+                ball_color = (255, 215, 0)  # Brighter gold
+            elif self.active_ball_skin == "rainbow":
+                # Random color for rainbow effect
+                ball_color = (
+                    random.randint(150, 255),
+                    random.randint(150, 255),
+                    random.randint(150, 255)
+                )
+            elif self.active_ball_skin == "ice":
+                ball_color = (100, 200, 255)  # Ice blue
+            elif self.active_ball_skin == "fire":
+                ball_color = (255, 100, 0)  # Fire orange/red
+            
             # Create new ball with bet amount
-            new_ball = Ball(ball_start_x, ball_start_y, 9.5, self.GOLD, bet_amount)
+            new_ball = Ball(ball_start_x, ball_start_y, 9.5, ball_color, bet_amount)
             new_ball.dy = 2  # Initial drop speed
+            # Add slight random initial horizontal velocity
+            new_ball.dx = random.uniform(-0.8, 0.8)
+            
+            # Apply lucky charm effect if active
+            if self.lucky_charm_active:
+                # Lucky charm gives slightly more favorable physics
+                new_ball.dx = random.uniform(-0.5, 0.5)  # Less horizontal variance
+            
             self.balls.append(new_ball)
             
             # Deduct bet amount (rounded)
@@ -146,6 +178,16 @@ class GameScreen(BaseScreen):
         """Update game elements"""
         # Update dashboard
         self.dashboard.update()
+        
+        # Keep coins synchronized with dashboard
+        if hasattr(self.dashboard, 'coins') and self.dashboard.coins != self.coins:
+            self.coins = self.dashboard.coins
+        
+        # Update lucky charm timer
+        if self.lucky_charm_active and self.lucky_charm_time > 0:
+            self.lucky_charm_time -= 1/60  # Decrease by 1 second per 60 frames
+            if self.lucky_charm_time <= 0:
+                self.lucky_charm_active = False
         
         # Update balls and check for collisions
         width = self.settings_manager.get_setting('width')
@@ -178,6 +220,28 @@ class GameScreen(BaseScreen):
         # Draw navigation buttons
         self.draw_button(screen, 'back', self.buttons['back'], "Back")
         self.draw_button(screen, 'shop', self.buttons['shop'], "Shop")
+        
+        # Draw lucky charm timer if active
+        if self.lucky_charm_active and self.lucky_charm_time > 0:
+            # Create semi-transparent overlay for timer
+            timer_surface = pygame.Surface((150, 30), pygame.SRCALPHA)
+            timer_surface.fill((0, 0, 0, 100))  # Semi-transparent black
+            
+            # Calculate minutes and seconds
+            minutes = int(self.lucky_charm_time // 60)
+            seconds = int(self.lucky_charm_time % 60)
+            
+            # Create timer text
+            font = pygame.font.Font(None, 24)
+            timer_text = font.render(f"Lucky: {minutes:02}:{seconds:02}", True, (255, 215, 0))
+            
+            # Position in top right
+            timer_rect = timer_surface.get_rect(topright=(self.settings_manager.get_setting('width') - 10, 10))
+            text_rect = timer_text.get_rect(center=timer_rect.center)
+            
+            # Draw timer
+            screen.blit(timer_surface, timer_rect)
+            screen.blit(timer_text, text_rect)
         
         # Draw pins
         for pin in self.pins:
@@ -234,10 +298,18 @@ class GameScreen(BaseScreen):
                     return self.on_back()
                 elif button_name == 'shop':
                     return self.on_shop()
-                    
+        
         # Check dashboard buttons
-        result = self.dashboard.handle_click(pos)
-        if result:
-            return result
+        dashboard_result = self.dashboard.handle_click(pos)
+        
+        # Always synchronize coins with dashboard after any click
+        if hasattr(self.dashboard, 'coins'):
+            self.coins = self.dashboard.coins
             
-        return None  # No button clicked 
+        return dashboard_result  # Return the result from dashboard
+        
+    def update_coins(self, new_coins):
+        """Update coins in both the game and dashboard"""
+        self.coins = new_coins
+        if hasattr(self.dashboard, 'update_coins'):
+            self.dashboard.update_coins(new_coins) 

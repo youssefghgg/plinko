@@ -11,7 +11,7 @@ class BaseScreen:
         self.BLACK = (0, 0, 0)
         self.BLUE = (0, 100, 255)
         self.DARK_BLUE = (0, 70, 178)
-        self.GREEN = (0, 255, 0)
+        self.GREEN = (0, 180, 0)
         self.RED = (255, 0, 0)
         self.GRAY = (128, 128, 128)
         self.GOLD = (255, 215, 0)
